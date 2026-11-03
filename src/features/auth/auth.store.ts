@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 
-import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
+import type { Session, SupabaseClient, User as SupabaseUser } from '@supabase/supabase-js';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -37,10 +37,34 @@ export class EmailConfirmationRequiredError extends Error {
 }
 
 function authRedirectUrl(): string {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+  if (
+    Platform.OS === 'web' &&
+    typeof window !== 'undefined' &&
+    typeof window.location?.origin === 'string'
+  ) {
     return `${window.location.origin}/auth-callback`;
   }
   return Linking.createURL('auth-callback');
+}
+
+/**
+ * The browser promise and the auth-callback route can both observe the same
+ * OAuth redirect. Wait briefly for whichever path completes the session first
+ * instead of treating the loser of that race as a failed sign-in.
+ */
+export async function waitForSession(
+  client: SupabaseClient,
+  attempts = 10,
+  delayMs = 250,
+): Promise<Session | null> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const { data } = await client.auth.getSession();
+    if (data.session) return data.session;
+    if (attempt < attempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  return null;
 }
 
 function sessionToUser(user: SupabaseUser): User {
@@ -189,6 +213,11 @@ export const useAuthStore = create<AuthState>()(
         const client = requireSupabase();
         const redirectTo = authRedirectUrl(); // Linking.createURL('auth-callback')
 
+        // Warm the Android Custom Tab while the Supabase request is in flight.
+        if (Platform.OS === 'android') {
+          void WebBrowser.warmUpAsync().catch(() => undefined);
+        }
+
         if (Platform.OS === 'web') {
           const { error } = await client.auth.signInWithOAuth({
             provider: 'google',
@@ -237,24 +266,28 @@ export const useAuthStore = create<AuthState>()(
         const code = pick('code');
         const accessToken = pick('access_token');
         const refreshToken = pick('refresh_token');
+        let session: Session | null = null;
+
         if (code) {
-          const { error: exchangeError } = await client.auth.exchangeCodeForSession(code);
-          if (exchangeError) {
-            // Race guard: if exchange failed but a session now exists, treat as success
-            const { data: existing } = await client.auth.getSession();
-            if (!existing.session) {
+          const { data: exchangeData, error: exchangeError } =
+            await client.auth.exchangeCodeForSession(code);
+          session = exchangeData.session;
+          if (!session) {
+            // The auth-callback route can consume the same code first.
+            session = await waitForSession(client);
+            if (!session) {
               throw new Error(friendlyAuthError(exchangeError, 'Could not finish Google sign-in.'));
             }
           }
         } else if (typeof accessToken === 'string' && typeof refreshToken === 'string') {
-          const { error: sessionError } = await client.auth.setSession({
+          const { data: sessionData, error: sessionError } = await client.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
           });
-          if (sessionError) {
-            // Race guard: if setSession failed but a session now exists, treat as success
-            const { data: existing } = await client.auth.getSession();
-            if (!existing.session) {
+          session = sessionData.session;
+          if (!session) {
+            session = await waitForSession(client);
+            if (!session) {
               throw new Error(friendlyAuthError(sessionError, 'Could not finish Google sign-in.'));
             }
           }
@@ -262,10 +295,10 @@ export const useAuthStore = create<AuthState>()(
           throw new Error('Google did not return an authorization code or tokens.');
         }
 
-        const { data: sessionData } = await client.auth.getSession();
-        if (!sessionData.session) throw new Error('Google did not return a session. Please try again.');
+        if (!session) session = await waitForSession(client);
+        if (!session) throw new Error('Google did not return a session. Please try again.');
 
-        const user = applySession(sessionData.session, set);
+        const user = applySession(session, set);
         posthogAppLogger.info('google authentication completed', { auth_provider: 'google' });
         captureEvent('signed_in', { method: 'google' });
         return user;

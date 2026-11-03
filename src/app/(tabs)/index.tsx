@@ -78,10 +78,23 @@ function QuickAction({ label, caption, icon: Icon, tint, background, onPress }: 
       ]}
     >
       <View style={[styles.quickIcon, { backgroundColor: background }]}>
-        <Icon size={19} color={tint} strokeWidth={2.1} />
+        <Icon size={17} color={tint} strokeWidth={2.1} />
       </View>
-      <Text style={{ fontFamily: theme.fonts.bold, fontSize: 12.5, marginTop: 9 }}>{label}</Text>
-      <Text style={{ fontFamily: theme.fonts.medium, fontSize: 9.5, color: theme.colors.inkSubtle, marginTop: 1 }}>
+      <Text
+        numberOfLines={1}
+        style={{ fontFamily: theme.fonts.bold, fontSize: 11.5, marginTop: 7 }}
+      >
+        {label}
+      </Text>
+      <Text
+        numberOfLines={1}
+        style={{
+          fontFamily: theme.fonts.medium,
+          fontSize: 9.5,
+          color: theme.colors.inkSubtle,
+          marginTop: 1,
+        }}
+      >
         {caption}
       </Text>
     </Pressable>
@@ -94,9 +107,9 @@ function HomeSkeleton() {
     <View style={{ gap: 18 }}>
       <Skeleton height={214} radius={30} />
       <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Skeleton height={100} radius={20} style={{ flex: 1 }} />
-        <Skeleton height={100} radius={20} style={{ flex: 1 }} />
-        <Skeleton height={100} radius={20} style={{ flex: 1 }} />
+        <Skeleton height={86} radius={20} style={{ flex: 1 }} />
+        <Skeleton height={86} radius={20} style={{ flex: 1 }} />
+        <Skeleton height={86} radius={20} style={{ flex: 1 }} />
       </View>
       <Skeleton height={26} width={140} radius={8} />
       <Skeleton height={252} radius={26} />

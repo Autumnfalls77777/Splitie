@@ -82,7 +82,7 @@ export default function SignUpScreen() {
     }
     try {
       await signUp(values.name, values.email, values.password);
-      await syncConsentToAuthMetadata();
+      void syncConsentToAuthMetadata();
       posthog?.capture('account_created', { auth_provider: 'password' });
       completeOnboarding();
       hapticSuccess();
@@ -106,7 +106,7 @@ export default function SignUpScreen() {
     setGoogleLoading(true);
     try {
       await signInWithGoogle();
-      await syncConsentToAuthMetadata();
+      void syncConsentToAuthMetadata();
       posthog?.capture('account_created', { auth_provider: 'google' });
       completeOnboarding();
       hapticSuccess();

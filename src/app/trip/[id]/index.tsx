@@ -118,6 +118,7 @@ export default function TripDetailScreen() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [notifyOpen, setNotifyOpen] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
   const [codeResetLoading, setCodeResetLoading] = useState(false);
   const [joinCodeOverride, setJoinCodeOverride] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -540,12 +541,13 @@ export default function TripDetailScreen() {
                   </Text>
                 </View>
                 <Button
-                  label={summary.settled ? 'Add expense' : 'Settle up'}
+                  label={summary.settled ? 'Notify' : 'Settle up'}
                   variant={summary.settled ? 'secondary' : 'dark'}
                   size="sm"
+                  icon={summary.settled ? BellRing : undefined}
                   onPress={() =>
                     summary.settled
-                      ? router.push(`/trip/${trip.id}/add-expense`)
+                      ? openNotifySheet()
                       : router.push(`/trip/${trip.id}/settle`)
                   }
                 />
@@ -628,49 +630,6 @@ export default function TripDetailScreen() {
                 />
               </View>
 
-              {pendingInvites.length > 0 ? (
-                <View style={{ marginTop: 12 }}>
-                  <Text style={styles.statLabel}>Pending invites</Text>
-                  <View style={styles.inviteTags}>
-                    {pendingInvites.map((invite) => {
-                      const canCancel = isHost || invite.invitedBy === youId;
-                      const tagStyle = [
-                        styles.inviteTag,
-                        {
-                          backgroundColor: theme.colors.surfaceAlt,
-                          borderColor: theme.colors.line,
-                        },
-                      ];
-                      const label = (
-                        <Text
-                          style={{
-                            fontFamily: theme.fonts.semibold,
-                            fontSize: 11,
-                            color: theme.colors.inkMuted,
-                          }}
-                        >
-                          {invite.email}
-                        </Text>
-                      );
-                      return canCancel ? (
-                        <Pressable
-                          key={invite.id}
-                          accessibilityLabel={`Cancel invite for ${invite.email}`}
-                          onPress={() => void cancelPendingInvite(invite)}
-                          style={tagStyle}
-                        >
-                          {label}
-                          <X size={12} color={theme.colors.inkSubtle} />
-                        </Pressable>
-                      ) : (
-                        <View key={invite.id} style={tagStyle}>
-                          {label}
-                        </View>
-                      );
-                    })}
-                  </View>
-                </View>
-              ) : null}
             </Card>
 
             <SegmentedControl
@@ -853,12 +812,12 @@ export default function TripDetailScreen() {
             onPress={() => router.push(`/trip/${trip.id}/add-expense`)}
           />
           <Button
-            label={summary.settled ? 'All settled' : 'Settle up'}
+            label="Members"
             variant="secondary"
             size="md"
-            disabled={summary.settled}
+            icon={Users}
             style={{ flex: 1 }}
-            onPress={() => router.push(`/trip/${trip.id}/settle`)}
+            onPress={() => setMembersOpen(true)}
           />
         </View>
       </View>
@@ -1034,9 +993,14 @@ export default function TripDetailScreen() {
             </Text>
           </View>
         ) : reminderCandidates.length === 0 ? (
-          <Text variant="body" color={theme.colors.inkMuted}>
-            Add more people to the trip first.
-          </Text>
+          <View style={{ gap: 6 }}>
+            <Text variant="body" color={theme.colors.inkMuted}>
+              No one owes you right now.
+            </Text>
+            <Text variant="caption" color={theme.colors.inkSubtle}>
+              When someone owes you, they&apos;ll appear here so you can send a reminder.
+            </Text>
+          </View>
         ) : (
           <View style={{ gap: 8 }}>
             {reminderCandidates.map((candidate) => {
@@ -1111,6 +1075,109 @@ export default function TripDetailScreen() {
             </Text>
           </View>
         )}
+      </Sheet>
+
+      <Sheet
+        visible={membersOpen}
+        onClose={() => setMembersOpen(false)}
+        title="Members"
+        subtitle={`${trip.members.length} ${trip.members.length === 1 ? 'member' : 'members'} on this trip${
+          pendingInvites.length > 0
+            ? ` • ${pendingInvites.length} pending ${pendingInvites.length === 1 ? 'invite' : 'invites'}`
+            : ''
+        }`}
+      >
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          style={{ maxHeight: 420 }}
+          contentContainerStyle={{ gap: 18 }}
+        >
+          <View>
+            <Text style={styles.statLabel}>On this trip</Text>
+            <View style={{ gap: 2, marginTop: 8 }}>
+              {trip.members.map((member) => {
+                const host = member.userId === trip.createdBy;
+                const you = isYouMember(member, youId);
+                return (
+                  <View key={member.id} style={styles.memberRow}>
+                    <Avatar name={member.name} color={member.color} size={38} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontFamily: theme.fonts.semibold, fontSize: 13 }}>
+                        {member.name}
+                        {you ? ' (you)' : ''}
+                      </Text>
+                      <Text
+                        style={{
+                          fontFamily: theme.fonts.medium,
+                          fontSize: 10.5,
+                          color: theme.colors.inkSubtle,
+                          marginTop: 1,
+                        }}
+                      >
+                        {member.email ?? (member.userId ? 'Splitie member' : 'Name only')}
+                      </Text>
+                    </View>
+                    {host ? (
+                      <Badge label="Host" tone="lime" />
+                    ) : you ? (
+                      <Badge label="You" tone="neutral" />
+                    ) : !member.userId ? (
+                      <Badge label="Name only" tone="neutral" />
+                    ) : null}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
+          {pendingInvites.length > 0 ? (
+            <View>
+              <Text style={styles.statLabel}>Pending invites</Text>
+              <View style={{ gap: 2, marginTop: 8 }}>
+                {pendingInvites.map((invite) => {
+                  const canCancel = isHost || invite.invitedBy === youId;
+                  return (
+                    <View key={invite.id} style={styles.memberRow}>
+                      <View
+                        style={[
+                          styles.memberIcon,
+                          { backgroundColor: theme.colors.surfaceAlt },
+                        ]}
+                      >
+                        <Mail size={16} color={theme.colors.inkMuted} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontFamily: theme.fonts.semibold, fontSize: 13 }}>
+                          {invite.email}
+                        </Text>
+                        <Text
+                          style={{
+                            fontFamily: theme.fonts.medium,
+                            fontSize: 10.5,
+                            color: theme.colors.inkSubtle,
+                            marginTop: 1,
+                          }}
+                        >
+                          Invite pending
+                        </Text>
+                      </View>
+                      <Badge label="Pending" tone="warning" />
+                      {canCancel ? (
+                        <Pressable
+                          accessibilityLabel={`Cancel invite for ${invite.email}`}
+                          onPress={() => void cancelPendingInvite(invite)}
+                          style={styles.cancelInvite}
+                        >
+                          <X size={14} color={theme.colors.inkSubtle} />
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+        </ScrollView>
       </Sheet>
 
       <Sheet
@@ -1231,16 +1298,6 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   shareActions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
-  inviteTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  inviteTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    height: 26,
-  },
   resultIcon: {
     width: 48,
     height: 48,
@@ -1277,6 +1334,20 @@ const styles = StyleSheet.create({
     height: 30,
   },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
+  memberIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelInvite: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   floatingFooter: {
     position: 'absolute',
     left: 20,

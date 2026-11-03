@@ -76,7 +76,7 @@ export default function SignInScreen() {
     }
     try {
       await signIn(values.email, values.password);
-      await syncConsentToAuthMetadata();
+      void syncConsentToAuthMetadata();
       posthog?.capture('user_signed_in', { auth_provider: 'password' });
       completeOnboarding();
       hapticSuccess();
@@ -95,7 +95,7 @@ export default function SignInScreen() {
     setGoogleLoading(true);
     try {
       await signInWithGoogle();
-      await syncConsentToAuthMetadata();
+      void syncConsentToAuthMetadata();
       posthog?.capture('user_signed_in', { auth_provider: 'google' });
       completeOnboarding();
       hapticSuccess();
