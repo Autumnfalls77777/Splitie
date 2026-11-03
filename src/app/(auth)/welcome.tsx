@@ -8,6 +8,8 @@ import { Logo } from '@/components/brand/Logo';
 import { Avatar, AvatarStack } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Text } from '@/components/ui/Text';
+import { legalRoute } from '@/features/legal/consent';
+import { onboardingColors } from '@/features/onboarding/palette';
 import { useTheme } from '@/theme';
 
 export default function WelcomeScreen() {
@@ -18,11 +20,11 @@ export default function WelcomeScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.colors.lime }]}>
       <ScrollView
+        style={styles.scroll}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           flexGrow: 1,
           paddingTop: insets.top + 8,
-          paddingBottom: 300 + insets.bottom,
         }}
         bounces={false}
       >
@@ -34,9 +36,9 @@ export default function WelcomeScreen() {
           <Text
             style={{
               fontFamily: theme.fonts.displayXBold,
-              fontSize: 44,
-              lineHeight: 46,
-              letterSpacing: -2,
+              fontSize: 40,
+              lineHeight: 42,
+              letterSpacing: -1.8,
               color: theme.colors.onLime,
             }}
           >
@@ -45,11 +47,11 @@ export default function WelcomeScreen() {
           <Text
             style={{
               fontFamily: theme.fonts.medium,
-              fontSize: 15,
-              lineHeight: 23,
+              fontSize: 14.5,
+              lineHeight: 22,
               color: theme.colors.onLime,
               opacity: 0.66,
-              marginTop: 12,
+              marginTop: 8,
               maxWidth: 320,
             }}
           >
@@ -61,18 +63,25 @@ export default function WelcomeScreen() {
               colors={['#FFFFFF', '#F7F9EC']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={[styles.previewCard, { borderColor: theme.colors.ink }]}
+              style={[styles.previewCard, { borderColor: onboardingColors.ink }]}
             >
               <View style={styles.previewTop}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <View style={[styles.emojiWrap, { backgroundColor: theme.colors.limeSoft }]}>
-                    <Sparkles size={24} color={theme.colors.limeDeep} />
+                  <View style={[styles.emojiWrap, { backgroundColor: onboardingColors.limeSoft }]}>
+                    <Sparkles size={24} color={onboardingColors.limeDeep} />
                   </View>
                   <View>
-                    <Text style={{ fontFamily: theme.fonts.display, fontSize: 20, letterSpacing: -0.5 }}>
+                    <Text
+                      style={{
+                        fontFamily: theme.fonts.display,
+                        fontSize: 20,
+                        letterSpacing: -0.5,
+                        color: onboardingColors.ink,
+                      }}
+                    >
                       Goa Squad
                     </Text>
-                    <Text style={{ fontFamily: theme.fonts.medium, fontSize: 10.5, color: theme.colors.inkSubtle }}>
+                    <Text style={{ fontFamily: theme.fonts.medium, fontSize: 10.5, color: onboardingColors.inkMuted }}>
                       5 friends · 4 days in
                     </Text>
                   </View>
@@ -90,37 +99,49 @@ export default function WelcomeScreen() {
                   ringColor="#FFFFFF"
                 />
               </View>
-              <View style={[styles.dashed, { borderColor: theme.colors.lineStrong }]} />
+              <View style={[styles.dashed, { borderColor: onboardingColors.lineStrong }]} />
               <View style={styles.previewBottom}>
                 <View>
-                  <Text style={{ fontFamily: theme.fonts.medium, fontSize: 10, color: theme.colors.inkSubtle }}>
+                  <Text style={{ fontFamily: theme.fonts.medium, fontSize: 10, color: onboardingColors.inkMuted }}>
                     Total spent
                   </Text>
-                  <Text style={{ fontFamily: theme.fonts.display, fontSize: 26, letterSpacing: -0.9 }}>
+                  <Text
+                    style={{
+                      fontFamily: theme.fonts.display,
+                      fontSize: 26,
+                      letterSpacing: -0.9,
+                      color: onboardingColors.ink,
+                    }}
+                  >
                     ₹42,790
                   </Text>
                 </View>
-                <View style={[styles.owedPill, { backgroundColor: theme.colors.ink }]}>
-                  <Text style={{ fontFamily: theme.fonts.bold, fontSize: 11, color: theme.colors.inkInverse }}>
+                <View style={[styles.owedPill, { backgroundColor: onboardingColors.ink }]}>
+                  <Text style={{ fontFamily: theme.fonts.bold, fontSize: 11, color: onboardingColors.white }}>
                     You are owed ₹6,477
                   </Text>
                 </View>
               </View>
             </LinearGradient>
 
-            <View style={[styles.floatingNote, { backgroundColor: theme.colors.ink, borderColor: theme.colors.ink }]}>
+            <View
+              style={[
+                styles.floatingNote,
+                { backgroundColor: onboardingColors.ink, borderColor: onboardingColors.ink },
+              ]}
+            >
               <Avatar name="Ishita Rao" color="#F2A7C3" size={26} />
-              <Text style={{ fontFamily: theme.fonts.semibold, fontSize: 10.5, color: theme.colors.inkInverse }}>
+              <Text style={{ fontFamily: theme.fonts.semibold, fontSize: 10.5, color: onboardingColors.white }}>
                 Ishita paid you ₹2,000
               </Text>
-              <Sparkles size={14} color={theme.colors.lime} />
+              <Sparkles size={14} color={onboardingColors.lime} />
             </View>
           </View>
         </View>
 
       </ScrollView>
 
-      <View pointerEvents="box-none" style={styles.panelWrap}>
+      <View style={styles.panelWrap}>
         <View
           style={[
             styles.panel,
@@ -165,7 +186,33 @@ export default function WelcomeScreen() {
             align="center"
             style={{ marginTop: 12 }}
           >
-            By continuing you agree to the terms and privacy policy.
+            By continuing, you agree to the{' '}
+            <Text
+              accessibilityRole="link"
+              accessibilityLabel="Open Terms of Service"
+              onPress={() => router.push(legalRoute('terms'))}
+              style={{
+                fontFamily: theme.fonts.semibold,
+                color: theme.colors.ink,
+                textDecorationLine: 'underline',
+              }}
+            >
+              Terms of Service
+            </Text>{' '}
+            and{' '}
+            <Text
+              accessibilityRole="link"
+              accessibilityLabel="Open Privacy Policy"
+              onPress={() => router.push(legalRoute('privacy'))}
+              style={{
+                fontFamily: theme.fonts.semibold,
+                color: theme.colors.ink,
+                textDecorationLine: 'underline',
+              }}
+            >
+              Privacy Policy
+            </Text>
+            .
           </Text>
         </View>
       </View>
@@ -175,18 +222,19 @@ export default function WelcomeScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  scroll: { flex: 1 },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
   },
-  hero: { paddingHorizontal: 24, paddingTop: 30, paddingBottom: 24 },
-  previewWrap: { marginTop: 26, marginBottom: 8 },
+  hero: { paddingHorizontal: 24, paddingTop: 14, paddingBottom: 8 },
+  previewWrap: { marginTop: 14, marginBottom: 22 },
   previewCard: {
     borderRadius: 24,
     borderWidth: 1.5,
-    padding: 16,
+    padding: 14,
     transform: [{ rotate: '-1deg' }],
     shadowColor: '#4F6B16',
     shadowOpacity: 0.2,
@@ -196,7 +244,7 @@ const styles = StyleSheet.create({
   },
   previewTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   emojiWrap: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  dashed: { borderBottomWidth: 1, borderStyle: 'dashed', marginVertical: 13 },
+  dashed: { borderBottomWidth: 1, borderStyle: 'dashed', marginVertical: 11 },
   previewBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   owedPill: { borderRadius: 999, paddingHorizontal: 12, height: 30, justifyContent: 'center' },
   floatingNote: {
@@ -219,10 +267,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   panelWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
+    width: '100%',
     alignItems: 'center',
   },
   panel: {
@@ -231,7 +276,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 34,
     borderTopRightRadius: 34,
     paddingHorizontal: 24,
-    paddingTop: 12,
+    paddingTop: 10,
   },
   panelHandle: {
     width: 40,
@@ -239,6 +284,6 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: 'rgba(20,24,15,0.12)',
     alignSelf: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
 });
