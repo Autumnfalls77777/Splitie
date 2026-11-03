@@ -540,17 +540,29 @@ export default function TripDetailScreen() {
                     {summary.settled ? 'All settled' : `${yourLabel} ${money(yourAmount)}`}
                   </Text>
                 </View>
-                <Button
-                  label={summary.settled ? 'Notify' : 'Settle up'}
-                  variant={summary.settled ? 'secondary' : 'dark'}
-                  size="sm"
-                  icon={summary.settled ? BellRing : undefined}
-                  onPress={() =>
-                    summary.settled
-                      ? openNotifySheet()
-                      : router.push(`/trip/${trip.id}/settle`)
-                  }
-                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Notify trip members"
+                  onPress={openNotifySheet}
+                  style={({ pressed }) => [
+                    styles.notifyButton,
+                    {
+                      borderColor: theme.colors.ink,
+                      opacity: pressed ? 0.72 : 1,
+                    },
+                  ]}
+                >
+                  <BellRing size={15} color={theme.colors.ink} strokeWidth={2.3} />
+                  <Text
+                    style={{
+                      fontFamily: theme.fonts.bold,
+                      fontSize: 12.5,
+                      color: theme.colors.ink,
+                    }}
+                  >
+                    Notify
+                  </Text>
+                </Pressable>
               </View>
 
               <View style={[styles.balanceStats, { borderTopColor: theme.colors.line }]}>
@@ -1083,7 +1095,7 @@ export default function TripDetailScreen() {
         title="Members"
         subtitle={`${trip.members.length} ${trip.members.length === 1 ? 'member' : 'members'} on this trip${
           pendingInvites.length > 0
-            ? ` • ${pendingInvites.length} pending ${pendingInvites.length === 1 ? 'invite' : 'invites'}`
+            ? ` · ${pendingInvites.length} pending ${pendingInvites.length === 1 ? 'invite' : 'invites'}`
             : ''
         }`}
       >
@@ -1266,6 +1278,16 @@ const styles = StyleSheet.create({
   },
   body: { paddingHorizontal: 20 },
   balanceTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  notifyButton: {
+    height: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+  },
   balanceStats: {
     flexDirection: 'row',
     alignItems: 'center',
