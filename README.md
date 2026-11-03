@@ -9,23 +9,25 @@
 - **Ultimate goal**: Installable Android APK via EAS Build.
 
 ## Features
-- **Demo mode**: Local mock auth (`DEMO_MODE_ENABLED`). Demo user: Aarav Mehta, `aarav@splitie.app`, password `splitie123`.
+- **Google sign-in**: Supabase OAuth via `signInWithOAuth`. There is no demo mode, demo account, or seeded demo data.
 - **Trip splitting**: Equal, exact, percent, and shares splitting with per-member inputs and validation.
+- **Shared trips**: Join a trip with a 6-letter code, claim a name-only member, or invite someone by email. Hosts can rotate the code and remove pending invites.
 - **Personal expenses**: Track monthly/yearly spending with category donuts, budget progress rings, daily bar charts.
 - **Insights**: Six-month area charts, category breakdowns, weekday patterns, smart insight cards.
-- **Reminders**: Timed payback reminders with local notifications (Expo Notifications).
+- **Reminders**: Local settle-up notifications plus Expo push payment reminders to members who have a Splitie account.
 - **CSV export**: Export trip data or personal expense data.
-- **Reset demo**: Re-seed demo data at any time.
 - **Sign out**: Secure sign-out with confirmation dialog.
 
 ## Screens
 - Onboarding (3 slides): trip split receipt, spending donut, reminder cards
 - Welcome / Sign-in / Sign-up
 - Tabs: Home, Trips, Personal, Insights
-- Profile (appearance, currency, reminder timing, notifications, haptics, CSV export, reset demo, about, sign out)
+- Join a trip (code → preview → “Which one are you?” picker → join)
+- Profile (appearance, currency, reminder timing, notifications, haptics, CSV export, about, sign out)
 - Notifications (unread/completed reminders, due badges, snooze, mark all read)
 - Trip New (gradient preview, cover/emoji pickers, name/destination/date/budget, dynamic member chips)
-- Trip Detail (gradient cover hero, overlapping balance card, Expenses/Balances tabs, transfer actions)
+- Trip Detail (gradient cover hero, overlapping balance card, trip code card, pending invite tags, Expenses/Balances tabs, transfer actions)
+- Invite sheets (add member by email, notify others with push reminders)
 - Settle Up (transfer count/total, per-transfer cards, mark all paid)
 - Add Expense (big amount field, category grid, payer picker, split controls, participant selection)
 - Personal Add (amount quick chips, title, category grid, payment method, recurrence, date/note)
@@ -41,7 +43,7 @@
 - **Charts**: react-native-svg based DonutChart, BarChart, AreaChart, Sparkline, ProgressRing
 - **Animations**: Reanimated, Gesture Handler, expo-haptics
 - **Data Persistence**: Expo SQLite (offline-first), TanStack Query cache
-- **Notifications**: expo-notifications with scheduled reminders
+- **Notifications**: expo-notifications with scheduled reminders and Expo push tokens (`push_tokens` + `send-push` Edge Function)
 - **UI Primitives**: Custom Text, Screen, Logo/LogoMark, Button, IconButton, Card, Avatar, Chip, SegmentedControl, ProgressBar, Skeleton, Badge, Divider, EmptyState, Input, PasswordInput, Header, SectionHeader, ListRow, Sheet, CategoryIcon, AmountText, AnimatedNumber, Checkbox, MonthSwitcher, DateField
 - **Utilities**: Money formatting/parsing/allocation (integer paise), Indian date helpers, IDs, haptics, storage adapter, color helpers, currency display sync
 - **Type-safe routing**: Typed routes disabled (`experiments.typedRoutes: false`) to avoid Metro memory issues and stale generated types; navigation via string hrefs
@@ -57,16 +59,23 @@ src/
     charts/         # DonutChart, BarChart, AreaChart, ProgressRing, Sparkline
     trips/          # TripCard, ExpenseRow, PersonalExpenseRow
     onboarding/     # Illustrations, dots, skip, completion
-  features/         # Feature stores (auth, trips, personal, reminders, settings, ui)
+  features/         # Feature stores (auth, trips, invites, notifications, sync, etc.)
     auth/
     trips/
+    invites/
+    notifications/
+    sync/
     personal/
     reminders/
     settings/
-  lib/              # Utilities (money, date, currency, haptics, IDs, storage)
+  lib/              # Utilities (money, date, currency, haptics, IDs, storage, push)
   theme/            # Tokens, ThemeProvider, color palettes
   types/            # Type models (Trip, Expense, Member, etc.)
-  data/             # Categories, covers, demo seed data
+  data/             # Categories and covers
+supabase/
+  migrations/       # Apply in timestamp order in the Supabase SQL editor
+  functions/
+    send-push/      # Expo push delivery for reminders and invites
 app.json            # Expo config
 eas.json            # EAS Build profiles
 .gitignore
@@ -100,22 +109,25 @@ npx expo start --web --port 8081
 - Expo Go: **exp://10.165.47.250:8081** (LAN)
 - Note: On machines with limited disk/memory, Metro may OOM; clearing C: cache or increasing `--max-old-space-size` may help.
 
-### Demo Mode
-The app starts in demo mode if `DEMO_MODE_ENABLED` is true (default). On first launch:
-1. User sees onboarding (3 slides)
-2. Then `/welcome` auth screen
-3. Demo credentials: `aarav@splitie.app` / `splitie123`
-4. After login, navigates to `/(tabs)` with seeded demo data
+### Backend setup
+The app needs Supabase for auth and sync.
 
-To remove demo mode later, delete the `hasOnboarded` flag from settings or comment out the demo entry in `src/constants/app.ts`.
+1. Create a Supabase project.
+2. Run `supabase/migrations/20261102000000_init.sql`, then `supabase/migrations/20261103000000_trip_sharing.sql` in the SQL editor.
+3. Configure Google under **Authentication → Providers → Google**. The app calls `signInWithOAuth`, so the Google client ID/secret belong in Supabase, not in the app.
+4. Add `splitie://auth-callback` and the web callback URL to **Authentication → URL Configuration → Redirect URLs**.
+5. Deploy the Edge Function: `supabase functions deploy send-push`.
+   - `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically by Supabase. Do not create them as project secrets.
+6. Add `google-services.json` for Android FCM. It contains client identifiers, not server secrets, and is intentionally tracked. Add the `android.googleServicesFile` entry to `app.json` (see the Phase 2 TODO in `replyback.md`).
+7. Upload the Firebase service account to **Supabase → Project Settings → Messaging → FCM V1** for Android push.
 
 ### Environment Variables
-Create `.env.example` at root:
+Copy `.env.example` to `.env`:
 ```
 EXPO_PUBLIC_SUPABASE_URL=
-EXPO_PUBLIC_SUPABASE_ANON_KEY=
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 ```
-*(No real secrets committed; demo mode is local-only. Replace with actual Supabase credentials when backend is enabled.)*
+*Only public `EXPO_PUBLIC_*` values belong in the app. Never commit `GOOGLE_SECRET_KEY`, `SENTRY_AUTH_TOKEN`, the service role key, or a Firebase service-account JSON.*
 
 ### EAS Android APK Build
 ```bash
@@ -125,11 +137,15 @@ eas build -p android --profile preview   # Build APK
 See `eas.json` for the preview profile configuration.
 
 ## Known Limitations / Next Steps
-- **Typed routes disabled**: Navigation uses string `router.push('/(tabs')` etc.; type-safe routes can be re-enabled later with `experiments.typedRoutes: true` and `npx expo start --clear` to regenerate.
-- **Backend not yet connected**: Supabase schema migrations exist under `supabase/migrations/`. RLS policies ensure user-level access. Demo mode is fully local; backend integration requires Supabase setup and RLS.
+- **Typed routes disabled**: Navigation uses string `router.push('/(tabs)')` etc.; type-safe routes can be re-enabled later with `experiments.typedRoutes: true` and `npx expo start --clear` to regenerate.
+- **Migrations are manual**: `supabase/migrations/` is not applied automatically. Apply the init migration first, then the trip-sharing migration, then deploy `send-push`.
+- **Push requires Firebase**: Android push needs `google-services.json`, the `android.googleServicesFile` entry in `app.json`, and FCM V1 credentials in Supabase. Without them, the app still works and reminders are skipped.
+- **Reminder trust trade-off**: The app computes reminder amounts from the same suggested transfers as Settle up. The `send-push` function checks that the caller and recipients are trip members and that each amount is a positive integer no larger than the trip's total expenses, but it does not recompute the settle-up graph. Treat a reminder as a nudge, not a verified debt.
+- **No Realtime in v1**: Pending invites refresh on launch, foreground, sign-in, and invite push taps. A second device does not update live.
+- **Cross-trip currency totals**: Trip cards and trip screens use the trip's own currency; the Trips tab summary still adds trips together in the app's display currency.
+- **Account switch clears local cache**: `claimLocalData()` wipes local data when a device switches accounts. Shared trips will re-sync from the server, but unsynced local edits on the old account are lost.
 - **C: drive memory**: OOM errors during Metro bundling on low-disk machines; workarounds include moving Metro cache to E: (`$env:TEMP="E:\\Temp\\Temp"`), increasing Node heap, or using `--max-workers 1`.
-- **No git commits yet**: Working tree is untracked; initial commit recommended after this session.
-- **APK not built yet**: Requires EAS account and sufficient headroom.
+- **APK not built yet**: Requires EAS account, keystore/Play Console setup, and sufficient headroom.
 
 ## License
 MIT

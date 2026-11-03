@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "893629051699",
+    "project_id": "splitie-c5398",
+    "storage_bucket": "splitie-c5398.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:893629051699:android:9af092004a8b753a4e0446",
+        "android_client_info": {
+          "package_name": "app.splitie.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB0Gzzip-yl5PsVjunIoC1F4-h-fRfP4yw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

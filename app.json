@@ -20,6 +20,7 @@
     "android": {
       "package": "app.splitie.mobile",
       "versionCode": 1,
+      "googleServicesFile": "./google-services.json",
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.SCHEDULE_EXACT_ALARM"

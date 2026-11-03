@@ -19,7 +19,12 @@ ios/
 *.key
 *.mobileprovision
 *.orig.*
-google-services.json
+
+# Firebase client config (google-services.json) is intentionally tracked;
+# it contains client identifiers, not server secrets.
+# Server credentials must never be committed.
+*-firebase-adminsdk-*.json
+*service-account*.json
 
 # EAS
 .eas/
@@ -65,3 +70,7 @@ check.ps1
 check-url.ps1
 start-server.ps1
 start.bat
+
+
+*.jks
+@*.jks
