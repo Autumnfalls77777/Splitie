@@ -19,10 +19,12 @@ import {
   Check,
   ChevronRight,
   Download,
+  FileText,
   IndianRupee,
   Info,
   LogOut,
   Moon,
+  ShieldCheck,
   Smartphone,
   Sun,
   Trash2,
@@ -40,6 +42,8 @@ import { Screen } from '@/components/ui/Screen';
 import { Sheet } from '@/components/ui/Sheet';
 import { Text } from '@/components/ui/Text';
 import { APP_VERSION } from '@/constants/app';
+import { PRIVACY_VERSION } from '@/content/privacy';
+import { TERMS_VERSION } from '@/content/terms';
 import { CURRENCIES } from '@/data/categories';
 import { useAuthStore } from '@/features/auth/auth.store';
 import { usePersonalStore } from '@/features/personal/personal.store';
@@ -425,6 +429,27 @@ export default function ProfileScreen() {
             last
             showChevron
             onPress={() => setAboutOpen(true)}
+          />
+        </Card>
+
+        <Text style={styles.sectionLabel}>Legal</Text>
+        <Card padding={16} style={{ paddingVertical: 2 }}>
+          <ListRow
+            title="Terms of Service"
+            subtitle={`Version ${TERMS_VERSION}`}
+            icon={FileText}
+            iconColor={theme.colors.inkMuted}
+            showChevron
+            onPress={() => router.push('/legal/terms')}
+          />
+          <ListRow
+            title="Privacy Policy"
+            subtitle={`Version ${PRIVACY_VERSION}`}
+            icon={ShieldCheck}
+            iconColor={theme.colors.inkMuted}
+            last
+            showChevron
+            onPress={() => router.push('/legal/privacy')}
           />
         </Card>
 

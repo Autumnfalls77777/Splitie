@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Text } from '@/components/ui/Text';
 import { useAuthStore } from '@/features/auth/auth.store';
+import { syncConsentToAuthMetadata } from '@/features/legal/sync-consent';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/theme';
 
@@ -48,6 +49,7 @@ export default function AuthCallbackScreen() {
         if (cancelled) return;
 
         useAuthStore.getState().restoreSession(data.session);
+        await syncConsentToAuthMetadata();
         setMessage('You are signed in. Taking you home…');
         router.replace('/');
       } catch (error) {

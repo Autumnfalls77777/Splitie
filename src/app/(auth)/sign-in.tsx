@@ -8,13 +8,18 @@ import { z } from 'zod';
 import { ArrowRight } from 'lucide-react-native';
 import { usePostHog } from 'posthog-react-native';
 
+import { ConsentCheckbox } from '@/components/legal/ConsentCheckbox';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
 import { GoogleIcon } from '@/components/ui/GoogleIcon';
 import { Input } from '@/components/ui/Input';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Text } from '@/components/ui/Text';
+import { LEGAL_VERSION } from '@/content/legal';
 import { useAuthStore } from '@/features/auth/auth.store';
+import { hasAcceptedCurrentVersion } from '@/features/legal/consent';
+import { useConsentStore } from '@/features/legal/consent.store';
+import { syncConsentToAuthMetadata } from '@/features/legal/sync-consent';
 import { useSettingsStore } from '@/features/settings/settings.store';
 import { hapticSuccess } from '@/lib/haptics';
 import { useTheme } from '@/theme';
@@ -34,8 +39,24 @@ export default function SignInScreen() {
   const signIn = useAuthStore((state) => state.signIn);
   const signInWithGoogle = useAuthStore((state) => state.signInWithGoogle);
   const completeOnboarding = useSettingsStore((state) => state.completeOnboarding);
+  const acceptedVersion = useConsentStore((state) => state.acceptedVersion);
+  const acceptConsent = useConsentStore((state) => state.accept);
+  const clearConsent = useConsentStore((state) => state.clear);
   const [serverError, setServerError] = useState<string | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const agreed = hasAcceptedCurrentVersion(acceptedVersion);
+
+  const handleConsentChange = (checked: boolean) => {
+    if (checked) {
+      acceptConsent(LEGAL_VERSION);
+    } else {
+      clearConsent();
+    }
+  };
+
+  const consentRequired = () => {
+    setServerError('Please agree to the Terms of Service and Privacy Policy to continue.');
+  };
 
   const {
     control,
@@ -49,8 +70,13 @@ export default function SignInScreen() {
 
   const onSubmit = handleSubmit(async (values) => {
     setServerError(null);
+    if (!agreed) {
+      consentRequired();
+      return;
+    }
     try {
       await signIn(values.email, values.password);
+      await syncConsentToAuthMetadata();
       posthog?.capture('user_signed_in', { auth_provider: 'password' });
       completeOnboarding();
       hapticSuccess();
@@ -62,9 +88,14 @@ export default function SignInScreen() {
 
   const handleGoogle = async () => {
     setServerError(null);
+    if (!agreed) {
+      consentRequired();
+      return;
+    }
     setGoogleLoading(true);
     try {
       await signInWithGoogle();
+      await syncConsentToAuthMetadata();
       posthog?.capture('user_signed_in', { auth_provider: 'google' });
       completeOnboarding();
       hapticSuccess();
@@ -157,6 +188,7 @@ export default function SignInScreen() {
           icon={ArrowRight}
           iconPosition="right"
           loading={isSubmitting}
+          disabled={!agreed}
           style={{ marginTop: 24 }}
           onPress={onSubmit}
         />
@@ -169,6 +201,8 @@ export default function SignInScreen() {
           <View style={[styles.divider, { backgroundColor: theme.colors.line }]} />
         </View>
 
+        <ConsentCheckbox checked={agreed} onChange={handleConsentChange} />
+
         <Button
           label="Continue with Google"
           variant="secondary"
@@ -176,7 +210,8 @@ export default function SignInScreen() {
           fullWidth
           iconElement={<GoogleIcon size={19} />}
           loading={googleLoading}
-          disabled={isSubmitting}
+          disabled={!agreed || isSubmitting}
+          style={{ marginTop: 14 }}
           onPress={handleGoogle}
         />
 
