@@ -71,6 +71,17 @@
     "experiments": {
       "typedRoutes": false,
       "reactCompiler": false
-    }
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "1b05d1bf-d5f7-448b-9979-1fa1cb4a38b4"
+      }
+    },
+    "owner": "autumnfalls"
   }
 }

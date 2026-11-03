@@ -22,7 +22,6 @@
         "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_c9fEGzvxauI53_HnMcYVYQ_6GQmopY3",
         "EXPO_PUBLIC_POSTHOG_PROJECT_TOKEN": "phc_q6RGgj8BZNphKL9AvFsrQMryn5z8x7f35tPqxiNW5NKQ",
         "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com",
-        "EXPO_PUBLIC_SENTRY_DSN": "",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     }
