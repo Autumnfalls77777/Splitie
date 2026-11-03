@@ -1,0 +1,152 @@
+export type ISODate = string;
+
+export type User = {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+  /** Which sign-in method created the account. Older accounts are password-based. */
+  provider?: 'password' | 'google';
+  avatarUrl?: string;
+};
+
+export type Member = {
+  id: string;
+  name: string;
+  email?: string;
+  color: string;
+  isYou?: boolean;
+};
+
+export type TripCover = 'lime' | 'ocean' | 'sunset' | 'lilac' | 'clay' | 'teal';
+
+export type Trip = {
+  id: string;
+  name: string;
+  destination: string;
+  emoji: string;
+  cover: TripCover;
+  startDate: ISODate;
+  endDate: ISODate;
+  budgetPaise?: number;
+  members: Member[];
+  createdBy: string;
+  createdAt: string;
+  archived?: boolean;
+};
+
+export type TripCategoryId =
+  | 'food'
+  | 'stay'
+  | 'transport'
+  | 'activities'
+  | 'shopping'
+  | 'groceries'
+  | 'drinks'
+  | 'other';
+
+export type SplitType = 'equal' | 'exact' | 'percent' | 'shares';
+
+export type ExpenseSplit = {
+  memberId: string;
+  amountPaise: number;
+};
+
+export type Expense = {
+  id: string;
+  tripId: string;
+  title: string;
+  amountPaise: number;
+  category: TripCategoryId;
+  paidBy: string;
+  date: ISODate;
+  splitType: SplitType;
+  splits: ExpenseSplit[];
+  note?: string;
+  createdAt: string;
+};
+
+export type Settlement = {
+  id: string;
+  tripId: string;
+  fromMemberId: string;
+  toMemberId: string;
+  amountPaise: number;
+  date: ISODate;
+  note?: string;
+  createdAt: string;
+};
+
+export type PersonalCategoryId =
+  | 'food'
+  | 'groceries'
+  | 'transport'
+  | 'rent'
+  | 'shopping'
+  | 'health'
+  | 'fun'
+  | 'bills'
+  | 'education'
+  | 'other';
+
+export type Recurrence = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+export type PaymentMethod = 'upi' | 'card' | 'cash' | 'netbanking';
+
+export type PersonalExpense = {
+  id: string;
+  title: string;
+  amountPaise: number;
+  category: PersonalCategoryId;
+  date: ISODate;
+  note?: string;
+  recurrence: Recurrence;
+  paymentMethod: PaymentMethod;
+  createdAt: string;
+};
+
+export type ReminderType = 'settle' | 'trip' | 'personal';
+
+export type Reminder = {
+  id: string;
+  type: ReminderType;
+  title: string;
+  body: string;
+  dueDate: ISODate;
+  amountPaise?: number;
+  tripId?: string;
+  fromMemberId?: string;
+  toMemberId?: string;
+  read: boolean;
+  completed: boolean;
+  notificationId?: string;
+  createdAt: string;
+};
+
+export type MemberBalance = {
+  member: Member;
+  paidPaise: number;
+  sharePaise: number;
+  settledPaise: number;
+  receivedPaise: number;
+  balancePaise: number;
+};
+
+export type SuggestedTransfer = {
+  from: Member;
+  to: Member;
+  amountPaise: number;
+};
+
+export type TripSummary = {
+  totalPaise: number;
+  yourPaidPaise: number;
+  yourSharePaise: number;
+  yourBalancePaise: number;
+  balances: MemberBalance[];
+  transfers: SuggestedTransfer[];
+  settled: boolean;
+  budgetProgress: number;
+  perDayPaise: number;
+  dayCount: number;
+};

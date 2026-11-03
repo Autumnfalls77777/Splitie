@@ -1,0 +1,67 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native builds
+android/
+ios/
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+google-services.json
+
+# EAS
+.eas/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.pem
+
+# Tests & coverage
+coverage/
+.vitest/
+
+# Logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Build artefacts
+*.apk
+*.aab
+*.ipa
+builds/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*.swo
+
+# Local tooling / machine-specific
+.opencode/
+.claude/
+.playwright-mcp/
+.vscode/
+replyback.md
+
+# Local dev helper scripts (contain absolute Windows paths)
+check.ps1
+check-url.ps1
+start-server.ps1
+start.bat

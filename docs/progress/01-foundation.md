@@ -1,0 +1,137 @@
+# 01 — Foundation
+
+## Scaffold & Initial Setup
+- **Expo SDK 58** (`expo ~58.0.21`), React Native 0.88.1, React 19.3.0
+- **Expo Router** with `src/app` as app root; file-based routes under `src/app/(onboarding)`, `src/app/(auth)`, `src/app/(tabs)`
+- **TypeScript** strict mode; path aliases `@/*` → `./src/*`, `@/...` → `./src/...`
+- Installed core dependencies: `expo`, `expo-router`, `react-native`, `expo-splash-screen`, `expo-status-bar`, `expo-linear-gradient`, `expo-notifications`, `expo-haptics`, `expo-sqlite`, `expo-sharing`, `expo-clipboard`, `@react-navigation/bottom-tabs`, `@react-navigation/native`, `zod`, `react-hook-form`, `@tanstack/react-query`, `zustand`, `lucide-react-native`, `react-native-svg`, `react-native-gesture-handler`, `sharp`, `svg-react-native`, `@expo-google-fonts/bricolage-grotesque`, `@expo-google-fonts/manrope`, `vitest`, `playwright`
+
+## Key Design Decisions
+- **Token-based styling** instead of NativeWind: design tokens live in `src/theme/tokens.ts`; light/dark palettes; alias names (`white`, `clay`, `sky`, `lilac`, `amberSoft`) added to fix TypeScript errors.
+- **Fonts**: Bricolage Grotesque (display/numerics), Manrope (body).
+- **Palette**: lime `#C9F25B`, porcelain `#F4F5EC`, ink `#14180F`, dark bg `#0F1209`, clay `#FF8568`, sky `#82A6FF`, lilac `#B9A5FF`, amberSoft `#362B15`, positive `#3C7A2A`.
+- **Disabled React Compiler** (`app.json experiments.reactCompiler: false`) to reduce Metro memory after OOM.
+- **Typed routes disabled** (`experiments.typedRoutes: false`) and `.expo/types/router.d.ts` removed to avoid stale types and Metro memory issues; navigation uses string hrefs.
+- **Metro cache moved to E:** via `$env:TEMP="E:\\Temp\\Temp"` and junction; freed C: drive space.
+- **Dev server**: `npx expo start --web --port 8081`; LAN via `exp://10.165.47.250:8081`.
+- **OOM workaround**: `--max-old-space-size=2048`, `--max-workers 1`, clear C: cache, move large apps (Ollama) to E:.
+
+## Architecture Overview
+- **Feature-based folders**: `src/features/{auth,trips,personal,reminders,settings,ui}` stores (Zustand, persisted).
+- **UI primitives** in `src/components/ui/` (Text, Screen, Button, Card, Avatar, Chip, SegmentedControl, ProgressBar, Skeleton, Badge, Divider, EmptyState, Input, PasswordInput, Header, SectionHeader, ListRow, Sheet, CategoryIcon, AmountText, AnimatedNumber, Checkbox, MonthSwitcher, DateField).
+- **Layout**: custom `TabBar` with center lime FAB; `AddSheet` with trip picker; `Toast` host; `Sheet` with `height` prop (`number | \`${number}%\` | 'auto'`).
+- **State/data**: Zustand + persist (expo-sqlite/kv-store native, localStorage web); TanStack Query for server-state sync (placeholder for Supabase).
+- **Offline-first**: Expo SQLite-backed storage; local notifications via expo-notifications.
+- **Money**: integer paise; split/settlement math uses largest-remainder allocation and greedy min-cash-flow.
+- **Demo auth**: local mock behind `DEMO_MODE_ENABLED` in `src/constants/app.ts`; demo user Aarav Mehta, `aarav@splitie.app`, password `splitie123`; demo data seeded with 3 trips (Goa active, Bangalore past active, Manali settled) and ~3 months personal expenses.
+
+## Files Created / Modified (Initial)
+- `app.json` — Expo config; `experiments.typedRoutes: false`, `experiments.reactCompiler: false`
+- `eas.json` — Preview profile for Android APK
+- `.gitignore` — Standard Node/Expo ignores plus `C:/Users/praba/AppData/Local/ms-playwright`
+- `tsconfig.json` — Extends `expo/tsconfig.base`; paths `@/*` and `@/...`
+- `src/theme/tokens.ts` — `ThemeColors` with all alias names; light/dark palettes
+- `src/theme/index.tsx` — `ThemeProvider` with system/light/dark, `Appearance.setColorScheme('unspecified' | mode)`
+- `src/constants/app.ts` — `DEMO_MODE_ENABLED`, demo user/constants
+- `src/data/categories.ts` — Categories with emoji/cover; `PAYMENT_METHODS`
+- `src/data/demo.ts` — Demo seed data (3 trips, ~3 months expenses)
+- `src/lib/money.ts` — `toPaise`, `fromPaise`, `formatMoney`, `allocateEvenly`, `allocateByWeights`, `percentOf`, `formatSignedMoney`
+- `src/lib/date.ts` — Indian date helpers (`todayISO`, `daysBetween`, `monthKey`, `greeting`, etc.)
+- `src/lib/currency.ts` — `getDisplayCurrency`, currency sync with ThemeProvider
+- `src/lib/haptics.ts` — `hapticTap`
+- `src/types/models.ts` — Core types (Trip, Expense, Member, Split, etc.)
+- `src/app/_layout.tsx` — Root hydration gate, fonts, ThemeProvider, QueryProvider, SplashOverlay, Toast; removed `settings` Stack route
+- `src/app/index.tsx` — Onboarding/auth/tabs redirect logic; `!hasOnboarded ? /onboarding : !user ? /welcome : /(tabs)`
+- `src/app/(onboarding)/_layout.tsx` — Onboarding layout with lime background, no header
+- `src/app/(onboarding)/index.tsx` — 3-slide onboarding with custom illustrations, dots, skip, hasOnboarded persistence
+- `src/app/(auth)/_layout.tsx` — Auth layout, no header
+- `src/app/(auth)/welcome.tsx` — Welcome screen
+- `src/app/(auth)/sign-in.tsx` — Sign-in with RHF/Zod, demo credential fill
+- `src/app/(auth)/sign-up.tsx` — Sign-up with RHF/Zod
+- `src/app/(tabs)/_layout.tsx` — Tabs layout with custom TabBar, auth guard, global AddSheet
+- `src/app/(tabs)/index.tsx` — Home screen: greeting/date, notification bell, avatar, lime hero balance card, reminder banner, quick actions, active trip carousel, monthly spending card with sparkline/budget, recent activity, pull-to-refresh
+- `src/app/(tabs)/trips.tsx` — Trips screen: search, All/Open/Settled filters, dark totals card, full trip cards, empty/loading states, pull-to-refresh (RefreshControl `onRefresh` returns `void`)
+- `src/app/(tabs)/personal.tsx` — Personal screen: month switcher, dark budget hero with progress ring, daily bar chart, category donut/legend/progress rows, grouped recent expenses, budget edit sheet
+- `src/app/(tabs)/insights.tsx` — Insights screen: Month/Year toggle, period switcher, total summary, six-month/yearly area chart, category donut, weekday bars, smart insight cards, empty state
+- `src/app/profile.tsx` — Profile: lime user card with stats, appearance/currency/reminder timing/notification/haptics settings, CSV export (web download/native share/clipboard), reset demo, about sheet, sign out with confirmation dialogs
+- `src/app/notifications.tsx` — Notifications screen: permission banner, unread/completed reminders, due badges, view trip, snooze, mark done, mark all read
+- `src/app/trip/new.tsx` — Trip New: live gradient preview, cover/emoji pickers, name/destination/date/budget, dynamic member chips, validation
+- `src/app/trip/[id]/index.tsx` — Trip Detail: gradient cover hero, status/member/budget, overlapping balance card, Expenses/Balances tabs, grouped expense rows, expense detail sheet with delete/transfer/remind-mark-paid, member balances, share summary, trip options/delete, floating footer; share uses `showToast` instead of no-op
+- `src/app/trip/[id]/add-expense.tsx` — Add Expense: big amount field, category grid, payer picker, equal/exact/percent/shares split controls, participant selection, per-member split inputs, validation, date/note, save
+- `src/app/trip/[id]/settle.tsx` — Settle Up: transfer count/total hero, per-transfer cards, remind/mark-paid, mark all paid, settled empty state
+- `src/app/personal/add.tsx` — Personal Add: amount quick chips, title, category grid, payment method, recurrence, date/note, validation
+- `src/components/layout/Header.tsx` — Imports `IconButton`, `Text` from `@/components/ui/...` (fixed relative imports)
+- `src/components/layout/SectionHeader.tsx` — Imports `Text` from `@/components/ui/...` (fixed)
+- `src/components/layout/TabBar.tsx` — Custom floating tab bar with center lime FAB; uses new `BottomTabBarProps` API (`navigateToTab`, `emitter`) instead of `navigation`
+- `src/components/layout/AddSheet.tsx` — Add sheet with trip picker
+- `src/components/ui/Input.tsx` — `forwardRef<TextInputInstance, InputProps>`; ref typing fix
+- `src/components/ui/Sheet.tsx` — `height?: number | \`${number}%\` | 'auto'`; backdrop uses explicit `position: 'absolute'` instead of `StyleSheet.absoluteFillObject`
+- `src/components/ui/Toast.tsx` — Toast component (feedback/Toast path verified)
+- `src/components/charts/DonutChart.tsx` — `StyleSheet.absoluteFillObject` replaced with explicit `position: 'absolute'`
+- `src/components/charts/ProgressRing.tsx` — Same fix
+- `src/components/charts/Sparkline.tsx` — Sparkline using react-native-svg
+- `src/components/ui/CategoryIcon.tsx` — Category icon component
+- `src/components/ui/Avatar.tsx` — Avatar component
+- `src/components/ui/AvatarStack.tsx` — Avatar stack
+- `src/components/ui/Badge.tsx` — Badge component
+- `src/components/ui/ProgressBar.tsx` — Progress bar
+- `src/components/ui/Skeleton.tsx` — Skeleton loader
+- `src/components/ui/EmptyState.tsx` — Empty state
+- `src/components/ui/Checkbox.tsx` — Checkbox
+- `src/components/ui/MonthSwitcher.tsx` — Month switcher
+- `src/components/ui/DateField.tsx` — Date field (web + native)
+- `src/components/ui/FormScreen.tsx` — Shared form screen layout for modal forms with pinned footer, shared `PasswordInput`
+- `src/features/auth/auth.store.ts` — Auth store (persisted with zustand persist)
+- `src/features/trips/trips.store.ts` — Trips store
+- `src/features/personal/personal.store.ts` — Personal store
+- `src/features/reminders/reminder.service.ts` — Reminder service, notification scheduling
+- `src/features/settings/settings.store.ts` — Settings store (theme mode, currency, haptics, notification lead days, etc.)
+- `src/features/settings/ui.store.ts` — UI toast/add-sheet store
+- `src/lib/query.ts` — QueryProvider, useHydration
+- `src/app/trip/[id]/settle.tsx` — Settle logic, `new Set(...).size` inline in JSX
+- `src/app/trip/[id]/add-expense.tsx` — `categoryCell` width `'23%'` with 4 columns and gaps; check wrapping on narrow screens
+- `src/app/(tabs)/personal.tsx` — budget validation message: "above ₹100" but check is `< 10_000` paise; copy adjusted or logic noted
+- `src/app/(tabs)/personal.tsx` — `dailyData` highlights all zero days when all values are 0; guard added for max > 0
+- `src/app/(auth)/welcome.tsx` — `LogoMark` import unused; kept for future
+- `src/app/(auth)/sign-in.tsx`/`sign-up.tsx` — `router.replace('/(tabs)')`; typed-route error resolved by disabling typedRoutes
+- `src/app/index.tsx` — Redirects to `/(tabs)`; typed-route error resolved
+- `src/app/(tabs)/insights.tsx` — Uses `theme.colors.lilac` (now defined)
+- `src/app/(tabs)/index.tsx` — Uses `theme.colors.clay`, `theme.colors.sky` (now defined)
+- `src/app/(tabs)/trips.tsx` — Uses `theme.colors.clay`, `theme.colors.sky` (now defined)
+- `src/app/(onboarding)/index.tsx` — Uses `theme.colors.white`, `theme.colors.clay`, `theme.colors.sky`, `theme.colors.lilac`, `theme.colors.amberSoft` (all added)
+- `src/app/(onboarding)/index.tsx` — `useRef<ScrollViewInstance>(null)` instead of `useRef<ScrollView>(null)`
+- `src/lib/currency.ts` — `getDisplayCurrency()`, `formatMoney` defaults to it
+- `src/components/charts/DonutChart.tsx` and `ProgressRing.tsx` — `StyleSheet.absoluteFillObject` replaced
+- `src/components/feedback/Toast.tsx` — exists; import path `@/components/feedback/Toast` works after fixing `#` resolve (Metro config may need `alias` for `src` -> `src/`; verified working in dev server)
+- `supabase/migrations/` — SQL migrations and RLS policies (created as part of backend plan)
+- `docs/progress/` — Progress tracking markdown files
+- `README.md` — Project overview, features, tech stack, getting started, known limitations
+
+## Verified / Working
+- TypeScript `tsc --noEmit` passes (after disabling typedRoutes, adding ThemeColors aliases, fixing imports, Input ref, Sheet height, absolute fill, TabBar API, ThemeProvider color scheme, onboarding ScrollView ref).
+- Dev server starts and loads onboarding screen; console has 0 errors, 1 warning (Unmatched Route on first load before navigation).
+- Onboarding completes and redirects to `/welcome` → `/(tabs)` with demo data.
+- Tab navigation (Home, Trips, Personal, Insights) functional.
+- Profile screen opens settings sheet; CSV export works on web (Blob download), native uses `expo-file-system/legacy` + `expo-sharing` + `expo-clipboard`.
+- Notifications permission requested; skeleton/empty states render.
+- Charts render with lime theme colors.
+- Split/settlement math tested via unit logic (money.ts, split.ts).
+- Demo data seeded and persists across restarts (Zustand persist).
+
+## Known Issues / Next Steps
+- **Dev server OOM on C:** drive**: Mitigated via cache move to E:, `--max-old-space-size=2048`, `--max-workers 1`. May still crash on very low memory; consider machine with more headroom.
+- **Typed routes disabled**: Navigation uses string hrefs; re-enable later with `experiments.typedRoutes: true` and `npx expo start --clear` to regenerate `.expo/types/router.d.ts`.
+- **Backend not connected**: Supabase migrations/RLS exist under `supabase/migrations/`; demo mode is fully local. Requires Supabase setup, env vars, and RLS implementation.
+- **APK not built**: EAS Build requires account; `eas.json` preview profile configured.
+- **Playwright QA**: Screenshots captured for onboarding, auth, tabs, profile, notifications, trip detail in light/dark when dev server stable.
+- **Screen bottom padding**: `Screen` always adds 108px bottom padding unless `contentBottom` is passed; verify usage in each screen.
+- **`getYearStats` unused `monthlyBudgetPaise`**: Parameter present but not used; either remove or integrate into budget progress ring.
+- **`computeTripSummary` UTC date**: Uses `new Date(...)` UTC; consider `daysBetween` for correctness (low priority).
+- **`Screen` always adds 108px bottom padding**: Unless `contentBottom` passed; verify all screens.
+- **`Appearance.setColorScheme`**: Uses `'unspecified'` for system mode; verified.
+- **`Input` ref**: `forwardRef<TextInputInstance, InputProps>`; type import added from `react-native`.
+- **`Sheet` height**: `height?: number | \`${number}%\` | 'auto'`; backdrop explicit positioning.
+- **`TabBar` new API**: Uses `navigateToTab` and `emitter`; old `navigation` prop removed.
+- **`Share` fallback**: Trip detail share uses `showToast('Trip summary copied')` instead of no-op.
+- **`PAYMENT_METHODS`**: String icon names in `src/data/categories.ts`; personal add screen uses local icon map (minor inconsistency, not an error).
+- **No git commits**: Working tree untracked; initial commit recommended.
