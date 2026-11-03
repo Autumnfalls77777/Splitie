@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, Text as RNText, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -187,7 +187,7 @@ export default function WelcomeScreen() {
             style={{ marginTop: 12 }}
           >
             By continuing, you agree to the{' '}
-            <Text
+            <RNText
               accessibilityRole="link"
               accessibilityLabel="Open Terms of Service"
               onPress={() => router.push(legalRoute('terms'))}
@@ -198,9 +198,9 @@ export default function WelcomeScreen() {
               }}
             >
               Terms of Service
-            </Text>{' '}
+            </RNText>{' '}
             and{' '}
-            <Text
+            <RNText
               accessibilityRole="link"
               accessibilityLabel="Open Privacy Policy"
               onPress={() => router.push(legalRoute('privacy'))}
@@ -211,7 +211,7 @@ export default function WelcomeScreen() {
               }}
             >
               Privacy Policy
-            </Text>
+            </RNText>
             .
           </Text>
         </View>
