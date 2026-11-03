@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -14,12 +14,11 @@ import { BellRing, ChevronRight, Sparkles } from 'lucide-react-native';
 import { LogoMark } from '@/components/brand/Logo';
 import { DonutChart } from '@/components/charts/DonutChart';
 import { Avatar } from '@/components/ui/Avatar';
-import { Button } from '@/components/ui/Button';
 import { Text } from '@/components/ui/Text';
+import { onboardingColors } from '@/features/onboarding/palette';
 import { useSettingsStore } from '@/features/settings/settings.store';
-import { formatMoney } from '@/lib/money';
 import { hapticSelect, hapticTap } from '@/lib/haptics';
-import { useTheme } from '@/theme';
+import { fonts } from '@/theme/tokens';
 
 const SLIDES = [
   {
@@ -40,38 +39,79 @@ const SLIDES = [
 ];
 
 function ReceiptIllustration() {
-  const theme = useTheme();
   const rows = [
     { name: 'Rohan', color: '#F3A26F', amount: '₹2,400' },
     { name: 'Neha', color: '#8FC9F5', amount: '₹970' },
     { name: 'Kabir', color: '#C8B4F5', amount: '₹480' },
   ];
   return (
-    <View style={[styles.receipt, { backgroundColor: theme.colors.white, borderColor: theme.colors.ink }]}>
+    <View
+      style={[
+        styles.receipt,
+        { backgroundColor: onboardingColors.white, borderColor: onboardingColors.ink },
+      ]}
+    >
       <View style={styles.receiptHeader}>
         <View>
-          <Text style={{ fontFamily: theme.fonts.medium, fontSize: 10, color: theme.colors.ink }}>Trip split</Text>
-          <Text style={{ fontFamily: theme.fonts.display, fontSize: 24, letterSpacing: -0.6 }}>Goa Squad</Text>
+          <Text
+            style={{
+              fontFamily: fonts.medium,
+              fontSize: 10,
+              color: onboardingColors.ink,
+            }}
+          >
+            Trip split
+          </Text>
+          <Text
+            style={{
+              fontFamily: fonts.display,
+              fontSize: 24,
+              letterSpacing: -0.6,
+              color: onboardingColors.ink,
+            }}
+          >
+            Goa Squad
+          </Text>
         </View>
-        <Sparkles size={30} color={theme.colors.limeDeep} />
+        <Sparkles size={30} color={onboardingColors.limeDeep} />
       </View>
-      <View style={[styles.dashed, { borderColor: theme.colors.lineStrong }]} />
+      <View style={[styles.dashed, { borderColor: onboardingColors.inkSoft }]} />
       {rows.map((row) => (
         <View key={row.name} style={styles.receiptRow}>
           <Avatar name={row.name} color={row.color} size={26} />
-          <Text style={{ flex: 1, fontFamily: theme.fonts.semibold, fontSize: 12.5, color: theme.colors.ink }}>{row.name}</Text>
-          <Text style={{ fontFamily: theme.fonts.bold, fontSize: 12.5, color: theme.colors.ink }}>{row.amount}</Text>
+          <Text
+            style={{
+              flex: 1,
+              fontFamily: fonts.semibold,
+              fontSize: 12.5,
+              color: onboardingColors.ink,
+            }}
+          >
+            {row.name}
+          </Text>
+          <Text style={{ fontFamily: fonts.bold, fontSize: 12.5, color: onboardingColors.ink }}>
+            {row.amount}
+          </Text>
         </View>
       ))}
-      <View style={[styles.dashed, { borderColor: theme.colors.lineStrong }]} />
+      <View style={[styles.dashed, { borderColor: onboardingColors.inkSoft }]} />
       <View style={styles.receiptRow}>
-        <Text style={{ flex: 1, fontFamily: theme.fonts.semibold, fontSize: 11.5, color: theme.colors.ink }}>
+        <Text
+          style={{
+            flex: 1,
+            fontFamily: fonts.semibold,
+            fontSize: 11.5,
+            color: onboardingColors.ink,
+          }}
+        >
           Total spent
         </Text>
-        <Text style={{ fontFamily: theme.fonts.display, fontSize: 20 }}>₹42,790</Text>
+        <Text style={{ fontFamily: fonts.display, fontSize: 20, color: onboardingColors.ink }}>
+          ₹42,790
+        </Text>
       </View>
-      <View style={[styles.balancePill, { backgroundColor: theme.colors.lime }]}>
-        <Text style={{ fontFamily: theme.fonts.bold, fontSize: 11.5, color: theme.colors.onLime }}>
+      <View style={[styles.balancePill, { backgroundColor: onboardingColors.lime }]}>
+        <Text style={{ fontFamily: fonts.bold, fontSize: 11.5, color: onboardingColors.ink }}>
           You are owed ₹6,477
         </Text>
       </View>
@@ -80,37 +120,86 @@ function ReceiptIllustration() {
 }
 
 function DonutIllustration() {
-  const theme = useTheme();
   const segments = [
-    { value: 42, color: theme.colors.clay },
-    { value: 24, color: theme.colors.sky },
-    { value: 18, color: theme.colors.limeDeep },
-    { value: 16, color: theme.colors.lilac },
+    { value: 42, color: onboardingColors.clay },
+    { value: 24, color: onboardingColors.sky },
+    { value: 18, color: onboardingColors.limeDeep },
+    { value: 16, color: onboardingColors.lilac },
   ];
   return (
-    <View style={[styles.donutCard, { backgroundColor: theme.colors.white, borderColor: theme.colors.ink }]}>
+    <View
+      style={[
+        styles.donutCard,
+        { backgroundColor: onboardingColors.white, borderColor: onboardingColors.ink },
+      ]}
+    >
       <View style={styles.donutRow}>
-        <DonutChart segments={segments} size={132} strokeWidth={16}>
-          <Text style={{ fontFamily: theme.fonts.display, fontSize: 22, letterSpacing: -0.6 }}>₹42k</Text>
-          <Text style={{ fontFamily: theme.fonts.medium, fontSize: 9.5, color: theme.colors.inkSubtle }}>this month</Text>
+        <DonutChart
+          segments={segments}
+          size={132}
+          strokeWidth={16}
+          trackColor={onboardingColors.surfaceAlt}
+        >
+          <Text
+            style={{
+              fontFamily: fonts.display,
+              fontSize: 22,
+              letterSpacing: -0.6,
+              color: onboardingColors.ink,
+            }}
+          >
+            ₹42k
+          </Text>
+          <Text
+            style={{
+              fontFamily: fonts.medium,
+              fontSize: 9.5,
+              color: onboardingColors.inkMuted,
+            }}
+          >
+            this month
+          </Text>
         </DonutChart>
         <View style={{ flex: 1, gap: 10 }}>
           {[
-            { label: 'Food', value: '42%', color: theme.colors.clay },
-            { label: 'Rent', value: '24%', color: theme.colors.sky },
-            { label: 'Fun', value: '18%', color: theme.colors.limeDeep },
-            { label: 'Other', value: '16%', color: theme.colors.lilac },
+            { label: 'Food', value: '42%', color: onboardingColors.clay },
+            { label: 'Rent', value: '24%', color: onboardingColors.sky },
+            { label: 'Fun', value: '18%', color: onboardingColors.limeDeep },
+            { label: 'Other', value: '16%', color: onboardingColors.lilac },
           ].map((item) => (
             <View key={item.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
               <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: item.color }} />
-              <Text style={{ flex: 1, fontFamily: theme.fonts.semibold, fontSize: 11 }}>{item.label}</Text>
-              <Text style={{ fontFamily: theme.fonts.bold, fontSize: 11 }}>{item.value}</Text>
+              <Text
+                style={{
+                  flex: 1,
+                  fontFamily: fonts.semibold,
+                  fontSize: 11,
+                  color: onboardingColors.ink,
+                }}
+              >
+                {item.label}
+              </Text>
+              <Text style={{ fontFamily: fonts.bold, fontSize: 11, color: onboardingColors.ink }}>
+                {item.value}
+              </Text>
             </View>
           ))}
         </View>
       </View>
-      <View style={[styles.dashed, { borderColor: theme.colors.lineStrong, marginTop: 18 }]} />
-      <Text style={{ fontFamily: theme.fonts.medium, fontSize: 11, color: theme.colors.inkMuted, marginTop: 12 }}>
+      <View
+        style={[
+          styles.dashed,
+          { borderColor: onboardingColors.inkSoft, marginTop: 18 },
+        ]}
+      />
+      <Text
+        style={{
+          fontFamily: fonts.medium,
+          fontSize: 11,
+          color: onboardingColors.inkMuted,
+          marginTop: 12,
+        }}
+      >
         Food was your biggest category this month.
       </Text>
     </View>
@@ -118,40 +207,89 @@ function DonutIllustration() {
 }
 
 function NotificationIllustration() {
-  const theme = useTheme();
   return (
     <View style={styles.notificationWrap}>
-      <View style={[styles.noteCard, { backgroundColor: theme.colors.white, borderColor: theme.colors.ink, transform: [{ rotate: '-3deg' }] }]}>
-        <View style={[styles.noteIcon, { backgroundColor: theme.colors.limeSoft }]}>
-          <BellRing size={18} color={theme.colors.limeDeep} />
+      <View
+        style={[
+          styles.noteCard,
+          {
+            backgroundColor: onboardingColors.white,
+            borderColor: onboardingColors.ink,
+            transform: [{ rotate: '-3deg' }],
+          },
+        ]}
+      >
+        <View style={[styles.noteIcon, { backgroundColor: onboardingColors.limeSoft }]}>
+          <BellRing size={18} color={onboardingColors.limeDeep} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontFamily: theme.fonts.bold, fontSize: 12 }}>Ishita still owes you ₹6,108</Text>
-          <Text style={{ fontFamily: theme.fonts.medium, fontSize: 10.5, color: theme.colors.inkSubtle, marginTop: 2 }}>
+          <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: onboardingColors.ink }}>
+            Ishita still owes you ₹6,108
+          </Text>
+          <Text
+            style={{
+              fontFamily: fonts.medium,
+              fontSize: 10.5,
+              color: onboardingColors.inkMuted,
+              marginTop: 2,
+            }}
+          >
             Goa Squad · due in 2 days
           </Text>
         </View>
       </View>
-      <View style={[styles.noteCard, styles.noteCardSecond, { backgroundColor: theme.colors.ink, borderColor: theme.colors.ink }]}>
+      <View
+        style={[
+          styles.noteCard,
+          styles.noteCardSecond,
+          { backgroundColor: onboardingColors.ink, borderColor: onboardingColors.ink },
+        ]}
+      >
         <View style={[styles.noteIcon, { backgroundColor: 'rgba(201,242,91,0.16)' }]}>
-          <Sparkles size={18} color={theme.colors.lime} />
+          <Sparkles size={18} color={onboardingColors.lime} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontFamily: theme.fonts.bold, fontSize: 12, color: theme.colors.inkInverse }}>
+          <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: onboardingColors.white }}>
             Nice. Bangalore Weekend is all settled.
           </Text>
-          <Text style={{ fontFamily: theme.fonts.medium, fontSize: 10.5, color: theme.colors.inkInverse, opacity: 0.6, marginTop: 2 }}>
+          <Text
+            style={{
+              fontFamily: fonts.medium,
+              fontSize: 10.5,
+              color: onboardingColors.onDarkMuted,
+              marginTop: 2,
+            }}
+          >
             Three friends, zero awkwardness.
           </Text>
         </View>
       </View>
-      <View style={[styles.noteCard, styles.noteCardThird, { backgroundColor: theme.colors.white, borderColor: theme.colors.ink, transform: [{ rotate: '2deg' }] }]}>
-        <View style={[styles.noteIcon, { backgroundColor: theme.colors.amberSoft }]}>
-          <BellRing size={18} color={theme.colors.warning} />
+      <View
+        style={[
+          styles.noteCard,
+          styles.noteCardThird,
+          {
+            backgroundColor: onboardingColors.white,
+            borderColor: onboardingColors.ink,
+            transform: [{ rotate: '2deg' }],
+          },
+        ]}
+      >
+        <View style={[styles.noteIcon, { backgroundColor: onboardingColors.amberSoft }]}>
+          <BellRing size={18} color={onboardingColors.warning} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontFamily: theme.fonts.bold, fontSize: 12 }}>Goa Squad is 95% through its budget</Text>
-          <Text style={{ fontFamily: theme.fonts.medium, fontSize: 10.5, color: theme.colors.inkSubtle, marginTop: 2 }}>
+          <Text style={{ fontFamily: fonts.bold, fontSize: 12, color: onboardingColors.ink }}>
+            Goa Squad is 95% through its budget
+          </Text>
+          <Text
+            style={{
+              fontFamily: fonts.medium,
+              fontSize: 10.5,
+              color: onboardingColors.inkMuted,
+              marginTop: 2,
+            }}
+          >
             Keep the last two days light.
           </Text>
         </View>
@@ -160,8 +298,41 @@ function NotificationIllustration() {
   );
 }
 
+function OnboardingButton({
+  label,
+  onPress,
+  icon,
+}: {
+  label: string;
+  onPress: () => void;
+  icon: ReactNode;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={() => {
+        hapticTap();
+        onPress();
+      }}
+      style={({ pressed }) => [styles.cta, pressed ? { opacity: 0.86 } : null]}
+    >
+      <Text
+        style={{
+          fontFamily: fonts.bold,
+          fontSize: 16.5,
+          letterSpacing: -0.2,
+          color: onboardingColors.white,
+        }}
+      >
+        {label}
+      </Text>
+      {icon}
+    </Pressable>
+  );
+}
+
 export default function OnboardingScreen() {
-  const theme = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -185,11 +356,26 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.colors.lime, paddingTop: insets.top + 8 }]}>
+    <View
+      style={[
+        styles.root,
+        { backgroundColor: onboardingColors.lime, paddingTop: insets.top + 8 },
+      ]}
+    >
       <View style={styles.topBar}>
-        <LogoMark size={34} color={theme.colors.onLime} softColor="#3C4A26" />
+        <LogoMark
+          size={34}
+          color={onboardingColors.ink}
+          softColor={onboardingColors.inkSoft}
+        />
         <Pressable onPress={finish} hitSlop={12}>
-          <Text style={{ fontFamily: theme.fonts.bold, fontSize: 12.5, color: theme.colors.onLime, opacity: 0.6 }}>
+          <Text
+            style={{
+              fontFamily: fonts.bold,
+              fontSize: 12.5,
+              color: onboardingColors.inkMuted,
+            }}
+          >
             Skip
           </Text>
         </Pressable>
@@ -211,16 +397,22 @@ export default function OnboardingScreen() {
       >
         {SLIDES.map((slide, slideIndex) => (
           <View key={slide.title} style={{ width, paddingHorizontal: 24, paddingTop: 20 }}>
-            <Text style={{ fontFamily: theme.fonts.bold, fontSize: 12, color: theme.colors.onLime, opacity: 0.55 }}>
+            <Text
+              style={{
+                fontFamily: fonts.bold,
+                fontSize: 12,
+                color: onboardingColors.inkMuted,
+              }}
+            >
               {slide.kicker}
             </Text>
             <Text
               style={{
-                fontFamily: theme.fonts.displayXBold,
+                fontFamily: fonts.displayXBold,
                 fontSize: 38,
                 lineHeight: 41,
                 letterSpacing: -1.5,
-                color: theme.colors.onLime,
+                color: onboardingColors.ink,
                 marginTop: 8,
               }}
             >
@@ -228,11 +420,10 @@ export default function OnboardingScreen() {
             </Text>
             <Text
               style={{
-                fontFamily: theme.fonts.medium,
+                fontFamily: fonts.medium,
                 fontSize: 14.5,
                 lineHeight: 22,
-                color: theme.colors.onLime,
-                opacity: 0.68,
+                color: onboardingColors.inkMuted,
                 marginTop: 12,
                 maxWidth: 330,
               }}
@@ -257,20 +448,22 @@ export default function OnboardingScreen() {
                 width: dotIndex === index ? 24 : 6,
                 height: 6,
                 borderRadius: 3,
-                backgroundColor: theme.colors.onLime,
+                backgroundColor: onboardingColors.ink,
                 opacity: dotIndex === index ? 1 : 0.25,
               }}
             />
           ))}
         </View>
-        <Button
+        <OnboardingButton
           label={index === SLIDES.length - 1 ? 'Start splitting' : 'Next'}
           onPress={next}
-          variant="dark"
-          size="lg"
-          fullWidth
-          icon={index === SLIDES.length - 1 ? Sparkles : ChevronRight}
-          iconPosition="right"
+          icon={
+            index === SLIDES.length - 1 ? (
+              <Sparkles size={20} color={onboardingColors.white} strokeWidth={2.4} />
+            ) : (
+              <ChevronRight size={20} color={onboardingColors.white} strokeWidth={2.4} />
+            )
+          }
         />
       </View>
     </View>
@@ -279,7 +472,12 @@ export default function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24 },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+  },
   illustration: { flex: 1, justifyContent: 'center', paddingBottom: 8 },
   receipt: {
     borderRadius: 24,
@@ -329,4 +527,18 @@ const styles = StyleSheet.create({
   noteIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   footer: { paddingHorizontal: 24, paddingTop: 12, gap: 16 },
   dots: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  cta: {
+    height: 58,
+    borderRadius: 999,
+    backgroundColor: onboardingColors.ink,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#4F6B16',
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
 });

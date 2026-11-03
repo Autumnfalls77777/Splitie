@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Text } from '@/components/ui/Text';
 import { COVERS } from '@/data/categories';
+import { asCurrencyCode } from '@/lib/currency';
 import { formatDateRange } from '@/lib/date';
 import { formatMoney } from '@/lib/money';
 import { hapticTap } from '@/lib/haptics';
@@ -32,12 +33,14 @@ export function TripCard({ item, onPress, variant = 'full' }: TripCardProps) {
   const { trip, summary, status, expenseCount } = item;
   const cover = COVERS[trip.cover];
   const compact = variant === 'compact';
+  const currency = asCurrencyCode(trip.currency);
+  const money = (paise: number) => formatMoney(paise, { currency });
 
   const balanceLabel = summary.settled
     ? 'All settled'
     : summary.yourBalancePaise >= 0
-      ? `You're owed ${formatMoney(summary.yourBalancePaise)}`
-      : `You owe ${formatMoney(Math.abs(summary.yourBalancePaise))}`;
+      ? `You're owed ${money(summary.yourBalancePaise)}`
+      : `You owe ${money(Math.abs(summary.yourBalancePaise))}`;
 
   return (
     <Pressable
@@ -103,7 +106,7 @@ export function TripCard({ item, onPress, variant = 'full' }: TripCardProps) {
                 Total spent
               </Text>
               <Text variant="numericTiny" style={{ marginTop: 1 }}>
-                {formatMoney(summary.totalPaise)}
+                {money(summary.totalPaise)}
               </Text>
             </View>
             <AvatarStack members={trip.members} size={26} max={4} ringColor={theme.colors.surface} />
@@ -121,7 +124,7 @@ export function TripCard({ item, onPress, variant = 'full' }: TripCardProps) {
                   {Math.round(summary.budgetProgress * 100)}% of budget
                 </Text>
                 <Text style={{ fontFamily: theme.fonts.semibold, fontSize: 10, color: theme.colors.inkSubtle }}>
-                  {formatMoney(trip.budgetPaise)} budget
+                  {money(trip.budgetPaise)} budget
                 </Text>
               </View>
             </View>

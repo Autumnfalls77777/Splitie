@@ -5,6 +5,7 @@ import { createId } from '@/lib/id';
 import { captureEvent } from '@/lib/posthog';
 import { appStorage } from '@/lib/storage';
 import { enqueue } from '@/features/sync/outbox';
+import { useSettingsStore } from '@/features/settings/settings.store';
 import {
   expenseToRow,
   memberToRow,
@@ -21,6 +22,7 @@ export type NewTripInput = {
   startDate: string;
   endDate: string;
   budgetPaise?: number;
+  currency?: string;
   memberNames: string[];
   you: User;
 };
@@ -39,6 +41,7 @@ type TripState = {
   deleteSettlement: (settlementId: string) => void;
   addMember: (tripId: string, name: string, color: string) => void;
   removeMember: (tripId: string, memberId: string) => void;
+  setJoinCode: (tripId: string, joinCode: string) => void;
   resetTrips: () => void;
   replaceAll: (data: { trips: Trip[]; expenses: Expense[]; settlements: Settlement[] }) => void;
 };
@@ -46,15 +49,10 @@ type TripState = {
 const MEMBER_COLORS = ['#C9F25B', '#F3A26F', '#8FC9F5', '#C8B4F5', '#F2A7C3', '#7FD8C2'];
 
 function queueTrip(trip: Trip) {
+  // Members are never written through the trip payload. The creator's row is
+  // created by the database trigger; invitees are created by the SECURITY
+  // DEFINER RPCs; name-only rows are queued individually.
   enqueue('trips', 'upsert', trip.id, tripToRow(trip) as unknown as Record<string, unknown>);
-  for (const member of trip.members) {
-    enqueue(
-      'trip_members',
-      'upsert',
-      member.id,
-      memberToRow(member, trip.id) as unknown as Record<string, unknown>,
-    );
-  }
 }
 
 export const useTripStore = create<TripState>()(
@@ -71,6 +69,7 @@ export const useTripStore = create<TripState>()(
           name: input.you.name,
           email: input.you.email,
           color: MEMBER_COLORS[0],
+          userId: input.you.id,
           isYou: true,
         };
         const otherMembers = input.memberNames
@@ -91,6 +90,7 @@ export const useTripStore = create<TripState>()(
           startDate: input.startDate,
           endDate: input.endDate,
           budgetPaise: input.budgetPaise,
+          currency: input.currency ?? useSettingsStore.getState().currency,
           members: [youMember, ...otherMembers],
           createdBy: input.you.id,
           createdAt: now,
@@ -98,6 +98,16 @@ export const useTripStore = create<TripState>()(
 
         set((state) => ({ trips: [trip, ...state.trips] }));
         queueTrip(trip);
+        // The creator row is created by the database trigger. Initial
+        // name-only members still need an explicit trip_members upsert.
+        for (const member of otherMembers) {
+          enqueue(
+            'trip_members',
+            'upsert',
+            member.id,
+            memberToRow(member, trip.id) as unknown as Record<string, unknown>,
+          );
+        }
         captureEvent('trip_created', {
           cover: trip.cover,
           member_count: trip.members.length,
@@ -210,8 +220,6 @@ export const useTripStore = create<TripState>()(
           member.id,
           memberToRow(member, tripId) as unknown as Record<string, unknown>,
         );
-        const updated = get().trips.find((trip) => trip.id === tripId);
-        if (updated) enqueue('trips', 'upsert', updated.id, tripToRow(updated) as unknown as Record<string, unknown>);
         captureEvent('trip_member_added');
       },
 
@@ -223,10 +231,15 @@ export const useTripStore = create<TripState>()(
               : trip,
           ),
         }));
-        enqueue('trip_members', 'delete', memberId);
-        const updated = get().trips.find((trip) => trip.id === tripId);
-        if (updated) enqueue('trips', 'upsert', updated.id, tripToRow(updated) as unknown as Record<string, unknown>);
+        enqueue('trip_members', 'delete', memberId, { trip_id: tripId });
         captureEvent('trip_member_removed');
+      },
+
+      /** Cache a code fetched from the server without re-queueing the trip. */
+      setJoinCode: (tripId, joinCode) => {
+        set((state) => ({
+          trips: state.trips.map((trip) => (trip.id === tripId ? { ...trip, joinCode } : trip)),
+        }));
       },
 
       resetTrips: () => set({ trips: [], expenses: [], settlements: [] }),
@@ -235,8 +248,26 @@ export const useTripStore = create<TripState>()(
     }),
     {
       name: 'splitie-trips',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => appStorage),
+      migrate: (persisted, version) => {
+        const state = persisted as {
+          trips?: Trip[];
+          expenses?: Expense[];
+          settlements?: Settlement[];
+        } | null;
+        if (!state?.trips || version >= 2) return persisted as never;
+        return {
+          ...state,
+          trips: state.trips.map((trip) => ({
+            ...trip,
+            currency: trip.currency ?? 'INR',
+            members: trip.members.map((member) =>
+              member.isYou && !member.userId ? { ...member, userId: trip.createdBy } : member,
+            ),
+          })),
+        } as never;
+      },
     },
   ),
 );

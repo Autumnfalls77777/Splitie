@@ -14,9 +14,11 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { Text } from '@/components/ui/Text';
 import { useAuthStore } from '@/features/auth/auth.store';
 import { createSettleReminder } from '@/features/reminders/reminder.service';
+import { isYouMember } from '@/features/trips/identity';
 import { useTripQuery } from '@/features/trips/queries';
 import { useTripStore } from '@/features/trips/trips.store';
 import { useUIStore } from '@/features/settings/ui.store';
+import { asCurrencyCode } from '@/lib/currency';
 import { todayISO } from '@/lib/date';
 import { formatMoney } from '@/lib/money';
 import { hapticSuccess } from '@/lib/haptics';
@@ -59,6 +61,8 @@ export default function SettleUpScreen() {
   }
 
   const { trip, summary } = detail;
+  const currency = asCurrencyCode(trip.currency);
+  const money = (paise: number) => formatMoney(paise, { currency });
 
   const markPaid = (transfer: (typeof summary.transfers)[number]) => {
     addSettlement({
@@ -75,7 +79,7 @@ export default function SettleUpScreen() {
     });
     hapticSuccess();
     showToast('Payment recorded', {
-      description: `${transfer.from.name.split(' ')[0]} → ${transfer.to.name.split(' ')[0]} · ${formatMoney(transfer.amountPaise)}`,
+      description: `${transfer.from.name.split(' ')[0]} → ${transfer.to.name.split(' ')[0]} · ${money(transfer.amountPaise)}`,
     });
   };
 
@@ -99,11 +103,11 @@ export default function SettleUpScreen() {
   };
 
   const remind = async (transfer: (typeof summary.transfers)[number]) => {
-    const owesYou = transfer.to.id === youId;
+    const owesYou = isYouMember(transfer.to, youId);
     await createSettleReminder({
       title: owesYou
-        ? `${transfer.from.name} owes you ${formatMoney(transfer.amountPaise)}`
-        : `You owe ${transfer.to.name} ${formatMoney(transfer.amountPaise)}`,
+        ? `${transfer.from.name} owes you ${money(transfer.amountPaise)}`
+        : `You owe ${transfer.to.name} ${money(transfer.amountPaise)}`,
       body: `${trip.name} · a gentle nudge, not a nag`,
       amountPaise: transfer.amountPaise,
       tripId: trip.id,
@@ -163,7 +167,7 @@ export default function SettleUpScreen() {
           {summary.transfers.length} {summary.transfers.length === 1 ? 'transfer' : 'transfers'}
         </Text>
         <Text style={{ fontFamily: theme.fonts.medium, fontSize: 11.5, color: theme.colors.inkInverse, opacity: 0.55, marginTop: 3 }}>
-          {formatMoney(totalToClear)} moving between {new Set(summary.transfers.flatMap((transfer) => [transfer.from.id, transfer.to.id])).size} people.
+          {money(totalToClear)} moving between {new Set(summary.transfers.flatMap((transfer) => [transfer.from.id, transfer.to.id])).size} people.
         </Text>
         <View style={[styles.heroRule, { backgroundColor: 'rgba(255,255,255,0.1)' }]} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -176,8 +180,8 @@ export default function SettleUpScreen() {
 
       <View style={{ gap: 12, marginTop: 20 }}>
         {summary.transfers.map((transfer) => {
-          const owesYou = transfer.to.id === youId;
-          const youOwe = transfer.from.id === youId;
+          const owesYou = isYouMember(transfer.to, youId);
+          const youOwe = isYouMember(transfer.from, youId);
           return (
             <Card key={`${transfer.from.id}-${transfer.to.id}`} padding={16}>
               <View style={styles.transferTop}>
@@ -189,7 +193,7 @@ export default function SettleUpScreen() {
                   <Avatar name={transfer.to.name} color={transfer.to.color} size={42} />
                 </View>
                 <Text style={{ fontFamily: theme.fonts.display, fontSize: 24, letterSpacing: -0.7 }}>
-                  {formatMoney(transfer.amountPaise)}
+                  {money(transfer.amountPaise)}
                 </Text>
               </View>
 

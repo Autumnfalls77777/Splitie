@@ -40,6 +40,10 @@ type FormatOptions = {
   compact?: boolean;
 };
 
+export function currencySymbol(currency: CurrencyCode = getDisplayCurrency()): string {
+  return SYMBOLS[currency];
+}
+
 export function formatMoney(paise: number, options: FormatOptions = {}): string {
   const {
     currency = getDisplayCurrency(),

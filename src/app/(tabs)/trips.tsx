@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Plus, Search, SearchX, X } from 'lucide-react-native';
+import { useQueryClient } from '@tanstack/react-query';
+import { Plus, Search, SearchX, UserPlus, X } from 'lucide-react-native';
 
+import { JoinTripSheet } from '@/components/trips/JoinTripSheet';
 import { TripCard } from '@/components/trips/TripCard';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
@@ -14,7 +16,11 @@ import { Screen } from '@/components/ui/Screen';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Text } from '@/components/ui/Text';
 import { useAuthStore } from '@/features/auth/auth.store';
+import { useUIStore } from '@/features/settings/ui.store';
+import { syncNow } from '@/features/sync/sync';
 import { useTripsQuery } from '@/features/trips/queries';
+import type { JoinResult } from '@/features/trips/sharing';
+import { useTripStore } from '@/features/trips/trips.store';
 import { formatMoney } from '@/lib/money';
 import { useTheme } from '@/theme';
 
@@ -23,11 +29,31 @@ type Filter = 'all' | 'active' | 'settled';
 export default function TripsScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const showToast = useUIStore((state) => state.showToast);
   const user = useAuthStore((state) => state.user);
   const youId = user?.id ?? '';
   const query = useTripsQuery(youId);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  const [joinOpen, setJoinOpen] = useState(false);
+  const [joinSession, setJoinSession] = useState(0);
+
+  const handleJoined = async (result: JoinResult) => {
+    setJoinOpen(false);
+    showToast(`You joined ${result.tripName}`, {
+      description: result.hostName ? `Hosted by ${result.hostName}.` : undefined,
+    });
+
+    if (user) await syncNow(user.id);
+    await queryClient.invalidateQueries();
+
+    if (useTripStore.getState().trips.some((trip) => trip.id === result.tripId)) {
+      router.push(`/trip/${result.tripId}`);
+    } else {
+      showToast('Joined! Pull to refresh when you are back online.', { kind: 'info' });
+    }
+  };
 
   const trips = query.data ?? [];
 
@@ -61,39 +87,50 @@ export default function TripsScreen() {
   const settledCount = trips.filter((item) => item.status === 'settled').length;
 
   return (
-    <Screen
-      contentBottom={132}
-      refreshControl={
-        <RefreshControl
-          refreshing={query.isRefetching}
-          onRefresh={() => { void query.refetch(); }}
-          tintColor={theme.colors.limeDeep}
-        />
-      }
-    >
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text
-            style={{
-              fontFamily: theme.fonts.displayXBold,
-              fontSize: 34,
-              lineHeight: 38,
-              letterSpacing: -1.4,
-            }}
-          >
-            Trips
-          </Text>
-          <Text style={{ fontFamily: theme.fonts.medium, fontSize: 12, color: theme.colors.inkSubtle, marginTop: 2 }}>
-            {trips.length} {trips.length === 1 ? 'trip' : 'trips'} · {activeCount} still open
-          </Text>
+    <>
+      <Screen
+        contentBottom={132}
+        refreshControl={
+          <RefreshControl
+            refreshing={query.isRefetching}
+            onRefresh={() => { void query.refetch(); }}
+            tintColor={theme.colors.limeDeep}
+          />
+        }
+      >
+        <View style={styles.header}>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                fontFamily: theme.fonts.displayXBold,
+                fontSize: 34,
+                lineHeight: 38,
+                letterSpacing: -1.4,
+              }}
+            >
+              Trips
+            </Text>
+            <Text style={{ fontFamily: theme.fonts.medium, fontSize: 12, color: theme.colors.inkSubtle, marginTop: 2 }}>
+              {trips.length} {trips.length === 1 ? 'trip' : 'trips'} · {activeCount} still open
+            </Text>
+          </View>
+          <View style={styles.headerActions}>
+            <IconButton
+              icon={UserPlus}
+              accessibilityLabel="Join a trip"
+              onPress={() => {
+                setJoinSession((value) => value + 1);
+                setJoinOpen(true);
+              }}
+            />
+            <IconButton
+              icon={Plus}
+              variant="lime"
+              accessibilityLabel="Create a new trip"
+              onPress={() => router.push('/trip/new')}
+            />
+          </View>
         </View>
-        <IconButton
-          icon={Plus}
-          variant="lime"
-          accessibilityLabel="Create a new trip"
-          onPress={() => router.push('/trip/new')}
-        />
-      </View>
 
       <Input
         value={search}
@@ -209,12 +246,20 @@ export default function TripsScreen() {
           ) : null}
         </>
       )}
-    </Screen>
+      </Screen>
+      <JoinTripSheet
+        key={joinSession}
+        visible={joinOpen}
+        onClose={() => setJoinOpen(false)}
+        onJoined={handleJoined}
+      />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   summaryTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   summaryDivider: { height: StyleSheet.hairlineWidth, marginVertical: 14 },
   summaryBottom: { flexDirection: 'row', alignItems: 'center' },

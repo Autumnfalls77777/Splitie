@@ -24,6 +24,17 @@ type SyncOperation = {
 const STORAGE_KEY = 'splitie-sync-outbox';
 const MAX_ATTEMPTS = 5;
 
+/** Trips must exist before their members, expenses, and settlements. */
+const TABLE_ORDER: Record<SyncTable, number> = {
+  trips: 0,
+  trip_members: 1,
+  expenses: 1,
+  settlements: 1,
+  personal_expenses: 1,
+  reminders: 1,
+  user_settings: 1,
+};
+
 let queue: SyncOperation[] = [];
 let loadPromise: Promise<void> | null = null;
 let flushPromise: Promise<FlushResult> | null = null;
@@ -72,7 +83,12 @@ export function enqueue(
   id: string,
   payload?: Record<string, unknown>,
 ) {
-  const key = `${table}:${id}`;
+  // Trip member ids are only unique inside a trip, so their queue key and
+  // delete filter must include the trip.
+  const key =
+    table === 'trip_members'
+      ? `${table}:${String(payload?.trip_id ?? '')}:${id}`
+      : `${table}:${id}`;
   queue = [
     ...queue.filter((operation) => operation.key !== key),
     { key, table, type, id, payload, attempts: 0 },
@@ -95,6 +111,9 @@ async function runFlush(): Promise<FlushResult> {
     return { ok: true, pending: queue.length };
   }
 
+  // Stable sort so a later trip edit cannot jump ahead of a queued member row.
+  queue = [...queue].sort((a, b) => TABLE_ORDER[a.table] - TABLE_ORDER[b.table]);
+
   const { data: sessionData } = await supabase.auth.getSession();
   const userId = sessionData.session?.user.id;
 
@@ -113,16 +132,25 @@ async function runFlush(): Promise<FlushResult> {
     ) {
       payload.user_id = userId;
     }
-    if (userId && operation.table === 'trip_members' && payload.is_you === true) {
-      payload.user_id = userId;
-    }
+    // trip_members.user_id is never client-supplied. Real memberships are
+    // created by SECURITY DEFINER RPCs; the outbox only inserts name-only rows.
 
-    const conflictColumn = operation.table === 'user_settings' ? 'user_id' : 'id';
+    const conflictColumn =
+      operation.table === 'user_settings'
+        ? 'user_id'
+        : operation.table === 'trip_members'
+          ? 'trip_id,id'
+          : 'id';
     const idColumn = operation.table === 'user_settings' ? 'user_id' : 'id';
+
+    let deleteQuery = supabase.from(operation.table).delete().eq(idColumn, operation.id);
+    if (operation.table === 'trip_members') {
+      deleteQuery = deleteQuery.eq('trip_id', String(operation.payload?.trip_id ?? ''));
+    }
 
     const { error } =
       operation.type === 'delete'
-        ? await supabase.from(operation.table).delete().eq(idColumn, operation.id)
+        ? await deleteQuery
         : await supabase.from(operation.table).upsert(payload, { onConflict: conflictColumn });
 
     if (error) {

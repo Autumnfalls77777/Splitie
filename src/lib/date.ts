@@ -160,6 +160,23 @@ export function formatTime(date: Date): string {
   return new Intl.DateTimeFormat('en-IN', { hour: 'numeric', minute: '2-digit' }).format(date);
 }
 
+/** Compact relative time for "Reminded 2h ago" style copy. */
+export function formatRelativeTimeShort(
+  iso: string | null | undefined,
+  now = Date.now(),
+): string {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return '';
+  const minutes = Math.max(0, Math.floor((now - then) / 60_000));
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 export function daysInRange(startISO: string, endISO: string): string[] {
   const total = Math.max(0, daysBetween(startISO, endISO));
   return Array.from({ length: total + 1 }, (_, index) => addDaysISO(startISO, index));

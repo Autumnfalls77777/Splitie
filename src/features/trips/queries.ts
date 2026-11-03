@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { sleep } from '@/lib/query';
 import { todayISO } from '@/lib/date';
 import type { Expense, Member, Trip, TripSummary } from '@/types/models';
+import { findYouMember } from './identity';
 import { useTripStore } from './trips.store';
 import { computeTripSummary, getTripStatus, type TripStatus } from './split';
 
@@ -110,12 +111,13 @@ export function useRecentActivityQuery(youId: string, limit = 6) {
           const trip = tripMap.get(expense.tripId);
           if (!trip) return null;
           const payer = trip.members.find((member) => member.id === expense.paidBy) ?? trip.members[0];
+          const youMember = findYouMember(trip.members, youId);
           return {
             expense,
             trip,
             payer,
             yourSharePaise:
-              expense.splits.find((split) => split.memberId === youId)?.amountPaise ?? 0,
+              expense.splits.find((split) => split.memberId === youMember?.id)?.amountPaise ?? 0,
           };
         })
         .filter((item): item is ActivityItem => item !== null);

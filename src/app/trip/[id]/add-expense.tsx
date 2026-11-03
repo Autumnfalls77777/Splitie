@@ -16,6 +16,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Text } from '@/components/ui/Text';
 import { TRIP_CATEGORIES } from '@/data/categories';
 import { useAuthStore } from '@/features/auth/auth.store';
+import { findYouMember, isYouMember } from '@/features/trips/identity';
 import { useTripQuery } from '@/features/trips/queries';
 import { useTripStore } from '@/features/trips/trips.store';
 import {
@@ -25,8 +26,9 @@ import {
   weightedSplits,
 } from '@/features/trips/split';
 import { useUIStore } from '@/features/settings/ui.store';
+import { asCurrencyCode } from '@/lib/currency';
 import { todayISO } from '@/lib/date';
-import { allocateEvenly, formatMoney, parseAmount } from '@/lib/money';
+import { allocateEvenly, currencySymbol, formatMoney, parseAmount } from '@/lib/money';
 import { hapticSelect, hapticSuccess, hapticTap } from '@/lib/haptics';
 import { useTheme } from '@/theme';
 import type { SplitType, TripCategoryId } from '@/types/models';
@@ -94,7 +96,7 @@ export default function AddExpenseScreen() {
   const [title, setTitle] = useState('');
   const [amountInput, setAmountInput] = useState('');
   const [category, setCategory] = useState<TripCategoryId>('food');
-  const [paidBy, setPaidBy] = useState(youId);
+  const [paidBy, setPaidBy] = useState('');
   const [date, setDate] = useState(todayISO());
   const [note, setNote] = useState('');
   const [splitType, setSplitType] = useState<SplitTypeValue>('equal');
@@ -104,14 +106,19 @@ export default function AddExpenseScreen() {
   const initialized = useRef(false);
 
   const trip = query.data?.trip;
+  const youMember = trip ? findYouMember(trip.members, youId) : undefined;
+  const youMemberId = youMember?.id ?? '';
+  const currency = asCurrencyCode(trip?.currency);
+  const money = (paise: number) => formatMoney(paise, { currency });
+  const symbol = currencySymbol(currency);
 
   useEffect(() => {
     if (trip && !initialized.current) {
       initialized.current = true;
       setParticipants(trip.members.map((member) => member.id));
-      setPaidBy(youId || trip.members[0]?.id || '');
+      setPaidBy(youMemberId || trip.members[0]?.id || '');
     }
-  }, [trip, youId]);
+  }, [trip, youMemberId]);
 
   const amountPaise = parseAmount(amountInput);
   const participantKey = participants.join('|');
@@ -195,8 +202,8 @@ export default function AddExpenseScreen() {
     );
   }
 
-  const yourShare = splits.find((split) => split.memberId === youId)?.amountPaise ?? 0;
-  const youPaid = paidBy === youId;
+  const yourShare = splits.find((split) => split.memberId === youMemberId)?.amountPaise ?? 0;
+  const youPaid = paidBy === youMemberId;
   const exactTotal = selectedMembers.reduce(
     (total, member) => total + parseAmount(custom[member.id] ?? '0'),
     0,
@@ -237,8 +244,8 @@ export default function AddExpenseScreen() {
     if (splitType === 'exact' && Math.abs(exactDiff) > 1) {
       setError(
         exactDiff > 0
-          ? `Assign ${formatMoney(exactDiff)} more before saving.`
-          : `You have assigned ${formatMoney(Math.abs(exactDiff))} too much.`,
+          ? `Assign ${money(exactDiff)} more before saving.`
+          : `You have assigned ${money(Math.abs(exactDiff))} too much.`,
       );
       return;
     }
@@ -270,7 +277,7 @@ export default function AddExpenseScreen() {
       split_type: splitType,
     });
     hapticSuccess();
-    showToast('Expense added', { description: `${formatMoney(amountPaise)} split between ${participants.length}.` });
+    showToast('Expense added', { description: `${money(amountPaise)} split between ${participants.length}.` });
     router.back();
   };
 
@@ -298,7 +305,7 @@ export default function AddExpenseScreen() {
           Amount
         </Text>
         <View style={styles.amountRow}>
-          <Text style={{ fontFamily: theme.fonts.display, fontSize: 36, letterSpacing: -1.4 }}>₹</Text>
+          <Text style={{ fontFamily: theme.fonts.display, fontSize: 36, letterSpacing: -1.4 }}>{symbol}</Text>
           <TextInput
             value={amountInput}
             onChangeText={(value) => {
@@ -316,8 +323,8 @@ export default function AddExpenseScreen() {
         </View>
         <Text style={{ fontFamily: theme.fonts.medium, fontSize: 11, color: theme.colors.inkSubtle }}>
           {youPaid
-            ? `You paid · your share ${formatMoney(yourShare)}`
-            : `${trip.members.find((member) => member.id === paidBy)?.name ?? 'Someone'} paid · your share ${formatMoney(yourShare)}`}
+            ? `You paid · your share ${money(yourShare)}`
+            : `${trip.members.find((member) => member.id === paidBy)?.name ?? 'Someone'} paid · your share ${money(yourShare)}`}
         </Text>
       </View>
 
@@ -395,7 +402,7 @@ export default function AddExpenseScreen() {
                   maxWidth: 64,
                 }}
               >
-                {member.id === youId ? 'You' : member.name.split(' ')[0]}
+                {isYouMember(member, youId) ? 'You' : member.name.split(' ')[0]}
               </Text>
               {selected ? (
                 <View style={[styles.selectedBadge, { backgroundColor: theme.colors.lime }]}>
@@ -453,7 +460,7 @@ export default function AddExpenseScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: theme.fonts.semibold, fontSize: 13 }}>
                   {member.name}
-                  {member.id === youId ? ' (you)' : ''}
+                  {isYouMember(member, youId) ? ' (you)' : ''}
                 </Text>
                 {member.id === paidBy ? (
                   <Text style={{ fontFamily: theme.fonts.medium, fontSize: 9.5, color: theme.colors.limeDeep }}>
@@ -467,7 +474,7 @@ export default function AddExpenseScreen() {
                   Not in split
                 </Text>
               ) : splitType === 'equal' ? (
-                <Text style={{ fontFamily: theme.fonts.bold, fontSize: 12.5 }}>{formatMoney(memberSplit)}</Text>
+                <Text style={{ fontFamily: theme.fonts.bold, fontSize: 12.5 }}>{money(memberSplit)}</Text>
               ) : splitType === 'exact' ? (
                 <SplitInput
                   value={custom[member.id] ?? ''}
@@ -476,7 +483,7 @@ export default function AddExpenseScreen() {
                       setCustom((current) => ({ ...current, [member.id]: value }));
                     }
                   }}
-                  prefix="₹"
+                  prefix={symbol}
                 />
               ) : splitType === 'percent' ? (
                 <SplitInput
@@ -517,8 +524,8 @@ export default function AddExpenseScreen() {
           {Math.abs(exactDiff) <= 1
             ? 'Exact amounts add up.'
             : exactDiff > 0
-              ? `${formatMoney(exactDiff)} left to assign.`
-              : `${formatMoney(Math.abs(exactDiff))} over the total.`}
+              ? `${money(exactDiff)} left to assign.`
+              : `${money(Math.abs(exactDiff))} over the total.`}
         </Text>
       ) : null}
       {splitType === 'percent' ? (
@@ -563,7 +570,7 @@ export default function AddExpenseScreen() {
       <View style={[styles.preview, { backgroundColor: theme.colors.surfaceAlt }]}>
         <View style={{ flex: 1 }}>
           <Text style={{ fontFamily: theme.fonts.bold, fontSize: 11.5 }}>
-            {youPaid ? `You lent ${formatMoney(Math.max(0, amountPaise - yourShare))}` : `Your share is ${formatMoney(yourShare)}`}
+            {youPaid ? `You lent ${money(Math.max(0, amountPaise - yourShare))}` : `Your share is ${money(yourShare)}`}
           </Text>
           <Text style={{ fontFamily: theme.fonts.medium, fontSize: 10.5, color: theme.colors.inkSubtle, marginTop: 2 }}>
             {youPaid

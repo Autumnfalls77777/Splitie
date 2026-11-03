@@ -2,11 +2,13 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { CategoryIcon } from '@/components/ui/CategoryIcon';
 import { Text } from '@/components/ui/Text';
+import { findYouMember } from '@/features/trips/identity';
+import { asCurrencyCode } from '@/lib/currency';
 import { formatDate } from '@/lib/date';
 import { formatMoney } from '@/lib/money';
 import { hapticTap } from '@/lib/haptics';
 import { useTheme } from '@/theme';
-import type { Expense, Member, Trip } from '@/types/models';
+import type { Expense, Trip } from '@/types/models';
 
 type ExpenseRowProps = {
   expense: Expense;
@@ -19,9 +21,12 @@ type ExpenseRowProps = {
 export function ExpenseRow({ expense, trip, youId, onPress, last }: ExpenseRowProps) {
   const theme = useTheme();
   const payer = trip.members.find((member) => member.id === expense.paidBy);
-  const yourShare = expense.splits.find((split) => split.memberId === youId)?.amountPaise ?? 0;
-  const youPaid = expense.paidBy === youId;
+  const youMember = findYouMember(trip.members, youId);
+  const yourShare =
+    expense.splits.find((split) => split.memberId === youMember?.id)?.amountPaise ?? 0;
+  const youPaid = Boolean(youMember) && expense.paidBy === youMember?.id;
   const payerLabel = youPaid ? 'You paid' : `${payer?.name.split(' ')[0] ?? 'Someone'} paid`;
+  const currency = asCurrencyCode(trip.currency);
 
   return (
     <Pressable
@@ -45,7 +50,7 @@ export function ExpenseRow({ expense, trip, youId, onPress, last }: ExpenseRowPr
         </View>
         <View style={{ alignItems: 'flex-end' }}>
           <Text variant="numericTiny" style={{ fontVariant: ['tabular-nums'] }}>
-            {formatMoney(expense.amountPaise)}
+            {formatMoney(expense.amountPaise, { currency })}
           </Text>
           <Text
             style={{
@@ -55,7 +60,7 @@ export function ExpenseRow({ expense, trip, youId, onPress, last }: ExpenseRowPr
               marginTop: 2,
             }}
           >
-            {youPaid ? `you lent ${formatMoney(expense.amountPaise - yourShare)}` : `your share ${formatMoney(yourShare)}`}
+            {youPaid ? `you lent ${formatMoney(expense.amountPaise - yourShare, { currency })}` : `your share ${formatMoney(yourShare, { currency })}`}
           </Text>
         </View>
       </View>

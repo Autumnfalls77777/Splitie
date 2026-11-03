@@ -1,4 +1,5 @@
 import { allocateByWeights, allocateEvenly, sum } from '@/lib/money';
+import { findYouMember } from './identity';
 import type {
   Expense,
   ExpenseSplit,
@@ -142,7 +143,10 @@ export function computeTripSummary(
   const tripSettlements = settlements.filter((settlement) => settlement.tripId === trip.id);
   const totalPaise = sum(tripExpenses.map((expense) => expense.amountPaise));
   const balances = computeBalances(trip, tripExpenses, tripSettlements);
-  const you = balances.find((balance) => balance.member.id === youId);
+  // Trip member row ids are not auth user ids for people who joined later.
+  // Resolve "you" through the linked user_id, then fall back to the creator id.
+  const youMember = findYouMember(trip.members, youId);
+  const you = balances.find((balance) => balance.member.id === youMember?.id);
   const dayCount = Math.max(1, Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / 86_400_000) + 1);
   const budgetProgress = trip.budgetPaise ? Math.min(1.5, totalPaise / trip.budgetPaise) : 0;
 
@@ -188,6 +192,7 @@ export function groupExpensesByDate(expenses: Expense[]): { date: string; data: 
     }));
 }
 
-export function expenseYourShare(expense: Expense, youId: string): number {
-  return expense.splits.find((split) => split.memberId === youId)?.amountPaise ?? 0;
+/** `memberId` is a trip_members row id, not an auth user id. */
+export function expenseYourShare(expense: Expense, memberId: string): number {
+  return expense.splits.find((split) => split.memberId === memberId)?.amountPaise ?? 0;
 }

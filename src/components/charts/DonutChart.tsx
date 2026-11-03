@@ -13,10 +13,18 @@ type DonutChartProps = {
   segments: DonutSegment[];
   size?: number;
   strokeWidth?: number;
+  /** Lets fixed-light screens keep a light track when the app theme is dark. */
+  trackColor?: string;
   children?: React.ReactNode;
 };
 
-export function DonutChart({ segments, size = 168, strokeWidth = 18, children }: DonutChartProps) {
+export function DonutChart({
+  segments,
+  size = 168,
+  strokeWidth = 18,
+  trackColor,
+  children,
+}: DonutChartProps) {
   const theme = useTheme();
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -32,7 +40,7 @@ export function DonutChart({ segments, size = 168, strokeWidth = 18, children }:
             cx={size / 2}
             cy={size / 2}
             r={radius}
-            stroke={theme.colors.surfaceAlt}
+            stroke={trackColor ?? theme.colors.surfaceAlt}
             strokeWidth={strokeWidth}
             fill="none"
           />

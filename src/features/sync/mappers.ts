@@ -17,7 +17,10 @@ export type TripRow = {
   start_date: string;
   end_date: string;
   budget_paise: number | null;
-  members: Member[];
+  /** Legacy cache only. trip_members is authoritative after Phase 2. */
+  members?: Member[];
+  currency?: string | null;
+  join_code?: string | null;
   created_by?: string;
   created_at: string;
   archived: boolean;
@@ -31,6 +34,7 @@ export type TripMemberRow = {
   email: string | null;
   color: string;
   is_you: boolean;
+  claimed_at?: string | null;
   created_at: string;
 };
 
@@ -98,7 +102,13 @@ export type UserSettingsRow = {
   compact_numbers: boolean;
 };
 
-export function tripToRow(trip: Trip): Omit<TripRow, 'created_by'> {
+/**
+ * Trips never write the legacy `members` jsonb or the server-owned join code.
+ * Real memberships live in trip_members; name-only rows are synced separately.
+ */
+export function tripToRow(
+  trip: Trip,
+): Omit<TripRow, 'created_by' | 'members' | 'join_code'> {
   return {
     id: trip.id,
     name: trip.name,
@@ -108,13 +118,16 @@ export function tripToRow(trip: Trip): Omit<TripRow, 'created_by'> {
     start_date: trip.startDate,
     end_date: trip.endDate,
     budget_paise: trip.budgetPaise ?? null,
-    members: trip.members,
+    currency: trip.currency ?? 'INR',
     created_at: trip.createdAt,
     archived: trip.archived ?? false,
   };
 }
 
-export function memberToRow(member: Member, tripId: string): Omit<TripMemberRow, 'user_id'> {
+export function memberToRow(
+  member: Member,
+  tripId: string,
+): Omit<TripMemberRow, 'user_id' | 'claimed_at'> {
   return {
     id: member.id,
     trip_id: tripId,
@@ -195,7 +208,10 @@ export function rowToMember(row: TripMemberRow, currentUserId?: string): Member 
     name: row.display_name,
     email: row.email ?? undefined,
     color: row.color,
-    isYou: row.is_you || (Boolean(currentUserId) && row.user_id === currentUserId),
+    userId: row.user_id ?? undefined,
+    // The cloud flag is legacy and can be stale. Only the linked auth user
+    // decides whether this row is the current user.
+    isYou: Boolean(currentUserId) && row.user_id === currentUserId,
   };
 }
 
@@ -209,6 +225,8 @@ export function rowToTrip(row: TripRow, members: Member[], currentUserId?: strin
     startDate: row.start_date,
     endDate: row.end_date,
     budgetPaise: row.budget_paise === null ? undefined : Number(row.budget_paise),
+    currency: row.currency ?? 'INR',
+    joinCode: row.join_code ?? undefined,
     members,
     createdBy: row.created_by ?? currentUserId ?? '',
     createdAt: row.created_at,

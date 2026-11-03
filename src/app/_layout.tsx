@@ -23,6 +23,7 @@ import {
 import { SplashOverlay } from '@/components/brand/SplashOverlay';
 import { Toast } from '@/components/feedback/Toast';
 import { initializeAuth } from '@/features/auth/auth-bootstrap';
+import { PushHost } from '@/features/notifications/PushHost';
 import { SyncGate } from '@/features/sync/sync-provider';
 import { posthog } from '@/lib/posthog';
 import { QueryProvider, useHydration } from '@/lib/query';
@@ -80,6 +81,7 @@ function AppShell() {
       <ScreenTracker />
       <ThemedStatusBar />
       <RootNavigator />
+      <PushHost />
       <SyncGate />
       <Toast />
       {showSplash ? <SplashOverlay onFinish={() => setShowSplash(false)} /> : null}

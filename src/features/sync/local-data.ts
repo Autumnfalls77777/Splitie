@@ -62,6 +62,9 @@ export function enqueueLocalSnapshot() {
   for (const trip of trips) {
     enqueue('trips', 'upsert', trip.id, tripToRow(trip) as unknown as Record<string, unknown>);
     for (const member of trip.members) {
+      // The creator is linked by the database trigger; other real accounts are
+      // linked by RPC. Only name-only rows can be inserted from the outbox.
+      if (member.userId || member.isYou) continue;
       enqueue(
         'trip_members',
         'upsert',

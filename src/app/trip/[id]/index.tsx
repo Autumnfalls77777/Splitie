@@ -17,12 +17,17 @@ import {
   ArrowRight,
   BellRing,
   Check,
+  Copy,
   EllipsisVertical,
+  Mail,
   Plus,
   ReceiptText,
+  RefreshCw,
   Share2,
   Trash2,
+  UserPlus,
   Users,
+  X,
 } from 'lucide-react-native';
 
 import { SectionHeader } from '@/components/layout/SectionHeader';
@@ -32,6 +37,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Input } from '@/components/ui/Input';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Screen } from '@/components/ui/Screen';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
@@ -42,16 +48,44 @@ import { COVERS, TRIP_CATEGORY_MAP } from '@/data/categories';
 import { useAuthStore } from '@/features/auth/auth.store';
 import { createSettleReminder } from '@/features/reminders/reminder.service';
 import { useUIStore } from '@/features/settings/ui.store';
+import { isYouMember } from '@/features/trips/identity';
 import { useTripQuery } from '@/features/trips/queries';
+import {
+  useReminderHistory,
+  useTripInvites,
+  useTripJoinCode,
+} from '@/features/trips/sharing.queries';
+import {
+  cancelInvite,
+  inviteToTrip,
+  regenerateJoinCode,
+  sendPaymentReminderPush,
+  sendTripInvitePush,
+  type TripInvite,
+} from '@/features/trips/sharing';
 import { useTripStore } from '@/features/trips/trips.store';
 import {
   getTripStatus,
   groupExpensesByDate,
   type TripStatus,
 } from '@/features/trips/split';
-import { formatDate, formatDateRange, formatDayLabel, todayISO } from '@/lib/date';
-import { formatMoney, formatSignedMoney } from '@/lib/money';
-import { hapticSuccess, hapticTap } from '@/lib/haptics';
+import { asCurrencyCode } from '@/lib/currency';
+import {
+  formatDate,
+  formatDateRange,
+  formatDayLabel,
+  formatRelativeTimeShort,
+  todayISO,
+} from '@/lib/date';
+import { hapticSelect, hapticSuccess, hapticTap } from '@/lib/haptics';
+import { isValidInviteEmail, normalizeInviteEmail } from '@/lib/invite-email';
+import {
+  buildReminderCandidates,
+  canSendPaymentReminder,
+  selectDefaultReminderRecipients,
+  type ReminderCandidate,
+} from '@/lib/payment-reminder';
+import { formatMoney } from '@/lib/money';
 import { useTheme } from '@/theme';
 import type { Expense, SuggestedTransfer } from '@/types/models';
 
@@ -76,17 +110,47 @@ export default function TripDetailScreen() {
   const deleteTrip = useTripStore((state) => state.deleteTrip);
   const deleteExpense = useTripStore((state) => state.deleteExpense);
   const addSettlement = useTripStore((state) => state.addSettlement);
+  const setJoinCode = useTripStore((state) => state.setJoinCode);
   const showToast = useUIStore((state) => state.showToast);
 
   const [tab, setTab] = useState<Tab>('expenses');
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [codeResetLoading, setCodeResetLoading] = useState(false);
+  const [joinCodeOverride, setJoinCodeOverride] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteSent, setInviteSent] = useState(false);
+  const [notifySelected, setNotifySelected] = useState<string[]>([]);
+  const [notifyLoading, setNotifyLoading] = useState(false);
+  const [notifyResult, setNotifyResult] = useState<{ sent: number; skipped: number } | null>(null);
 
   const detail = query.data;
+  const codeQuery = useTripJoinCode(tripId);
+  const inviteQuery = useTripInvites(tripId);
+  const remindersQuery = useReminderHistory(tripId, youId);
+
   const grouped = useMemo(
     () => (detail ? groupExpensesByDate(detail.expenses) : []),
     [detail],
   );
+
+  const reminderCandidates = useMemo(
+    () =>
+      detail ? buildReminderCandidates(detail.trip.members, detail.summary.transfers, youId) : [],
+    [detail, youId],
+  );
+
+  const lastRemindedByUser = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const entry of remindersQuery.data ?? []) {
+      if (!map.has(entry.recipientUserId)) map.set(entry.recipientUserId, entry.createdAt);
+    }
+    return map;
+  }, [remindersQuery.data]);
 
   if (!user) return <Redirect href="/welcome" />;
 
@@ -121,6 +185,11 @@ export default function TripDetailScreen() {
   }
 
   const { trip, summary } = detail;
+  const isHost = trip.createdBy === youId;
+  const joinCode = joinCodeOverride ?? codeQuery.data ?? trip.joinCode ?? null;
+  const pendingInvites = inviteQuery.data ?? [];
+  const currency = asCurrencyCode(trip.currency);
+  const money = (paise: number) => formatMoney(paise, { currency });
   const cover = COVERS[trip.cover];
   const status = getTripStatus(trip, summary.settled, todayISO());
   const yourLabel = summary.settled
@@ -131,13 +200,162 @@ export default function TripDetailScreen() {
   const yourAmount = Math.abs(summary.yourBalancePaise);
 
   const shareTrip = async () => {
-    const message = `${trip.name} · ${trip.destination}\n${formatDateRange(trip.startDate, trip.endDate)}\nTotal spent: ${formatMoney(summary.totalPaise)}\n${summary.settled ? 'All settled.' : summary.yourBalancePaise > 0 ? `You are owed ${formatMoney(summary.yourBalancePaise)}.` : `You owe ${formatMoney(Math.abs(summary.yourBalancePaise))}.`}\n\nTracked with Splitie.`;
+    const message = `${trip.name} · ${trip.destination}\n${formatDateRange(trip.startDate, trip.endDate)}\nTotal spent: ${money(summary.totalPaise)}\n${summary.settled ? 'All settled.' : summary.yourBalancePaise > 0 ? `You are owed ${money(summary.yourBalancePaise)}.` : `You owe ${money(Math.abs(summary.yourBalancePaise))}.`}\n\nTracked with Splitie.`;
     try {
       await Share.share({ message, title: trip.name });
     } catch {
       await Clipboard.setStringAsync(message);
       showToast('Trip summary copied', { description: 'Paste it in the group chat.' });
     }
+  };
+
+  const shareJoinCode = async () => {
+    if (!joinCode) return;
+    const message = `Join ${trip.name} on Splitie with code ${joinCode}.\nOpen Splitie → Trips → Join a trip.`;
+    try {
+      await Share.share({ message, title: `Join ${trip.name}` });
+    } catch {
+      await Clipboard.setStringAsync(joinCode);
+      showToast('Trip code copied');
+    }
+  };
+
+  const copyJoinCode = async () => {
+    if (!joinCode) return;
+    await Clipboard.setStringAsync(joinCode);
+    hapticSuccess();
+    showToast('Trip code copied');
+  };
+
+  const resetJoinCode = () => {
+    const run = async () => {
+      setCodeResetLoading(true);
+      try {
+        const nextCode = await regenerateJoinCode(trip.id);
+        setJoinCode(trip.id, nextCode);
+        setJoinCodeOverride(nextCode);
+        hapticSuccess();
+        showToast('New trip code ready', { description: 'The old code no longer works.' });
+      } catch (caught) {
+        showToast(caught instanceof Error ? caught.message : 'Could not reset the code.', {
+          kind: 'error',
+        });
+      } finally {
+        setCodeResetLoading(false);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (globalThis.confirm('Reset the trip code? The old code will stop working.')) void run();
+      return;
+    }
+    Alert.alert('Reset trip code?', 'The old code will stop working immediately.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Reset code', style: 'destructive', onPress: () => void run() },
+    ]);
+  };
+
+  const openInviteSheet = () => {
+    setInviteEmail('');
+    setInviteError(null);
+    setInviteSent(false);
+    setInviteOpen(true);
+  };
+
+  const sendInvite = async () => {
+    const email = normalizeInviteEmail(inviteEmail);
+    if (!isValidInviteEmail(email)) {
+      setInviteError('Enter a valid email address.');
+      return;
+    }
+    setInviteLoading(true);
+    setInviteError(null);
+    try {
+      const inviteId = await inviteToTrip(trip.id, email);
+      setInviteSent(true);
+      hapticSuccess();
+      if (inviteId) void sendTripInvitePush(inviteId).catch(() => undefined);
+      void inviteQuery.refetch();
+    } catch (caught) {
+      setInviteError(caught instanceof Error ? caught.message : 'Could not send the invite.');
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const cancelPendingInvite = async (invite: TripInvite) => {
+    try {
+      await cancelInvite(invite.id);
+      await inviteQuery.refetch();
+      showToast('Invite cancelled', { kind: 'info' });
+    } catch (caught) {
+      showToast(caught instanceof Error ? caught.message : 'Could not cancel the invite.', {
+        kind: 'error',
+      });
+    }
+  };
+
+  const openNotifySheet = () => {
+    setNotifySelected(
+      selectDefaultReminderRecipients(reminderCandidates).map((candidate) => candidate.member.id),
+    );
+    setNotifyResult(null);
+    setNotifyOpen(true);
+  };
+
+  const toggleNotify = (memberId: string) => {
+    hapticSelect();
+    setNotifySelected((current) =>
+      current.includes(memberId)
+        ? current.filter((id) => id !== memberId)
+        : [...current, memberId],
+    );
+  };
+
+  const sendReminders = async () => {
+    const recipients = reminderCandidates
+      .filter(
+        (candidate) =>
+          notifySelected.includes(candidate.member.id) &&
+          candidate.canRemind &&
+          candidate.member.userId,
+      )
+      .map((candidate) => ({
+        userId: candidate.member.userId as string,
+        amountPaise: candidate.amountPaise,
+      }));
+
+    if (recipients.length === 0) return;
+    setNotifyLoading(true);
+    try {
+      const result = await sendPaymentReminderPush(trip.id, recipients);
+      setNotifyResult({ sent: result.sent, skipped: result.skipped.length });
+      await remindersQuery.refetch();
+      hapticSuccess();
+    } catch (caught) {
+      showToast(caught instanceof Error ? caught.message : 'Could not send reminders.', {
+        kind: 'error',
+      });
+    } finally {
+      setNotifyLoading(false);
+    }
+  };
+
+  const reminderLabel = (candidate: ReminderCandidate) => {
+    if (candidate.reason === 'no_account') return 'No Splitie account yet';
+    if (candidate.reason === 'settled') return 'Settled';
+    const last = candidate.member.userId
+      ? lastRemindedByUser.get(candidate.member.userId)
+      : undefined;
+    if (last) return `Reminded ${formatRelativeTimeShort(last)}`;
+    return 'Owes you';
+  };
+
+  const isReminderCooldown = (candidate: ReminderCandidate) => {
+    const last = candidate.member.userId
+      ? lastRemindedByUser.get(candidate.member.userId)
+      : undefined;
+    return last ? !canSendPaymentReminder(last) : false;
   };
 
   const confirmDeleteTrip = () => {
@@ -173,11 +391,11 @@ export default function TripDetailScreen() {
   };
 
   const remind = async (transfer: SuggestedTransfer) => {
-    const owesYou = transfer.to.id === youId;
+    const owesYou = isYouMember(transfer.to, youId);
     await createSettleReminder({
       title: owesYou
-        ? `${transfer.from.name} owes you ${formatMoney(transfer.amountPaise)}`
-        : `You owe ${transfer.to.name} ${formatMoney(transfer.amountPaise)}`,
+        ? `${transfer.from.name} owes you ${money(transfer.amountPaise)}`
+        : `You owe ${transfer.to.name} ${money(transfer.amountPaise)}`,
       body: `${trip.name} · settle when you get a moment`,
       amountPaise: transfer.amountPaise,
       tripId: trip.id,
@@ -277,10 +495,10 @@ export default function TripDetailScreen() {
                 <View style={{ marginTop: 14 }}>
                   <View style={styles.budgetRow}>
                     <Text style={{ fontFamily: theme.fonts.semibold, fontSize: 10.5, color: cover.ink, opacity: 0.65 }}>
-                      {Math.round(summary.budgetProgress * 100)}% of {formatMoney(trip.budgetPaise)} budget
+                      {Math.round(summary.budgetProgress * 100)}% of {money(trip.budgetPaise)} budget
                     </Text>
                     <Text style={{ fontFamily: theme.fonts.bold, fontSize: 10.5, color: cover.ink }}>
-                      {formatMoney(summary.totalPaise)}
+                      {money(summary.totalPaise)}
                     </Text>
                   </View>
                   <ProgressBar
@@ -318,7 +536,7 @@ export default function TripDetailScreen() {
                           : theme.colors.negative,
                     }}
                   >
-                    {summary.settled ? 'All settled' : `${yourLabel} ${formatMoney(yourAmount)}`}
+                    {summary.settled ? 'All settled' : `${yourLabel} ${money(yourAmount)}`}
                   </Text>
                 </View>
                 <Button
@@ -336,17 +554,123 @@ export default function TripDetailScreen() {
               <View style={[styles.balanceStats, { borderTopColor: theme.colors.line }]}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.statLabel}>Total spent</Text>
-                  <Text style={styles.statValue}>{formatMoney(summary.totalPaise)}</Text>
+                  <Text style={styles.statValue}>{money(summary.totalPaise)}</Text>
                 </View>
                 <View style={[styles.statCell, { borderLeftColor: theme.colors.line }]}>
                   <Text style={styles.statLabel}>Your share</Text>
-                  <Text style={styles.statValue}>{formatMoney(summary.yourSharePaise)}</Text>
+                  <Text style={styles.statValue}>{money(summary.yourSharePaise)}</Text>
                 </View>
                 <View style={[styles.statCell, { borderLeftColor: theme.colors.line }]}>
                   <Text style={styles.statLabel}>Per day</Text>
-                  <Text style={styles.statValue}>{formatMoney(summary.perDayPaise)}</Text>
+                  <Text style={styles.statValue}>{money(summary.perDayPaise)}</Text>
                 </View>
               </View>
+            </Card>
+
+            <Card style={{ marginTop: 14 }} padding={16}>
+              <View style={styles.shareHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.statLabel}>Trip code</Text>
+                  <Text style={styles.codeText}>{joinCode ?? '••••••'}</Text>
+                  <Text style={styles.shareHint}>
+                    Share this code so others can join as a name on this trip.
+                  </Text>
+                </View>
+                <Button
+                  label="Share"
+                  variant="secondary"
+                  size="sm"
+                  icon={Share2}
+                  onPress={shareJoinCode}
+                  disabled={!joinCode}
+                />
+              </View>
+
+              <View style={styles.shareActions}>
+                <Button
+                  label="Copy code"
+                  variant="secondary"
+                  size="sm"
+                  icon={Copy}
+                  onPress={copyJoinCode}
+                  disabled={!joinCode}
+                  style={{ flex: 1 }}
+                />
+                {isHost ? (
+                  <Button
+                    label="New code"
+                    variant="ghost"
+                    size="sm"
+                    icon={RefreshCw}
+                    onPress={resetJoinCode}
+                    loading={codeResetLoading}
+                    style={{ flex: 1 }}
+                  />
+                ) : null}
+              </View>
+
+              <View style={styles.shareActions}>
+                <Button
+                  label="Add member"
+                  variant="secondary"
+                  size="sm"
+                  icon={UserPlus}
+                  onPress={openInviteSheet}
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  label="Notify others"
+                  variant="secondary"
+                  size="sm"
+                  icon={BellRing}
+                  onPress={openNotifySheet}
+                  style={{ flex: 1 }}
+                />
+              </View>
+
+              {pendingInvites.length > 0 ? (
+                <View style={{ marginTop: 12 }}>
+                  <Text style={styles.statLabel}>Pending invites</Text>
+                  <View style={styles.inviteTags}>
+                    {pendingInvites.map((invite) => {
+                      const canCancel = isHost || invite.invitedBy === youId;
+                      const tagStyle = [
+                        styles.inviteTag,
+                        {
+                          backgroundColor: theme.colors.surfaceAlt,
+                          borderColor: theme.colors.line,
+                        },
+                      ];
+                      const label = (
+                        <Text
+                          style={{
+                            fontFamily: theme.fonts.semibold,
+                            fontSize: 11,
+                            color: theme.colors.inkMuted,
+                          }}
+                        >
+                          {invite.email}
+                        </Text>
+                      );
+                      return canCancel ? (
+                        <Pressable
+                          key={invite.id}
+                          accessibilityLabel={`Cancel invite for ${invite.email}`}
+                          onPress={() => void cancelPendingInvite(invite)}
+                          style={tagStyle}
+                        >
+                          {label}
+                          <X size={12} color={theme.colors.inkSubtle} />
+                        </Pressable>
+                      ) : (
+                        <View key={invite.id} style={tagStyle}>
+                          {label}
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
             </Card>
 
             <SegmentedControl
@@ -403,8 +727,8 @@ export default function TripDetailScreen() {
                   <View style={{ gap: 10, marginTop: 10 }}>
                     {summary.transfers.length > 0 ? (
                       summary.transfers.map((transfer) => {
-                        const owesYou = transfer.to.id === youId;
-                        const youOwe = transfer.from.id === youId;
+                        const owesYou = isYouMember(transfer.to, youId);
+                        const youOwe = isYouMember(transfer.from, youId);
                         return (
                           <Card key={`${transfer.from.id}-${transfer.to.id}`} padding={14}>
                             <View style={styles.transferTop}>
@@ -414,7 +738,7 @@ export default function TripDetailScreen() {
                                 <Avatar name={transfer.to.name} color={transfer.to.color} size={34} />
                               </View>
                               <Text style={{ fontFamily: theme.fonts.display, fontSize: 19, letterSpacing: -0.4 }}>
-                                {formatMoney(transfer.amountPaise)}
+                                {money(transfer.amountPaise)}
                               </Text>
                             </View>
                             <Text style={{ fontFamily: theme.fonts.medium, fontSize: 11.5, color: theme.colors.inkSubtle, marginTop: 7 }}>
@@ -478,10 +802,10 @@ export default function TripDetailScreen() {
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontFamily: theme.fonts.semibold, fontSize: 13 }}>
                             {balance.member.name}
-                            {balance.member.id === youId ? ' (you)' : ''}
+                            {isYouMember(balance.member, youId) ? ' (you)' : ''}
                           </Text>
                           <Text style={{ fontFamily: theme.fonts.medium, fontSize: 10.5, color: theme.colors.inkSubtle, marginTop: 1 }}>
-                            Paid {formatMoney(balance.paidPaise)} · share {formatMoney(balance.sharePaise)}
+                            Paid {money(balance.paidPaise)} · share {money(balance.sharePaise)}
                           </Text>
                         </View>
                         <Text
@@ -498,7 +822,7 @@ export default function TripDetailScreen() {
                         >
                           {Math.abs(balance.balancePaise) <= 1
                             ? 'Settled'
-                            : `${balance.balancePaise > 0 ? 'gets' : 'owes'} ${formatMoney(Math.abs(balance.balancePaise))}`}
+                            : `${balance.balancePaise > 0 ? 'gets' : 'owes'} ${money(Math.abs(balance.balancePaise))}`}
                         </Text>
                       </View>
                     ))}
@@ -569,7 +893,7 @@ export default function TripDetailScreen() {
                 marginBottom: 4,
               }}
             >
-              {formatMoney(selectedExpense.amountPaise)}
+              {money(selectedExpense.amountPaise)}
             </Text>
             <Text style={{ fontFamily: theme.fonts.medium, fontSize: 12, color: theme.colors.inkSubtle }}>
               Paid by {selectedPayer?.name ?? 'someone'} · split {selectedExpense.splitType}
@@ -586,10 +910,10 @@ export default function TripDetailScreen() {
                     <Avatar name={member.name} color={member.color} size={28} />
                     <Text style={{ flex: 1, fontFamily: theme.fonts.semibold, fontSize: 12.5 }}>
                       {member.name}
-                      {member.id === youId ? ' (you)' : ''}
+                      {isYouMember(member, youId) ? ' (you)' : ''}
                     </Text>
                     <Text style={{ fontFamily: theme.fonts.bold, fontSize: 12.5 }}>
-                      {formatMoney(split.amountPaise)}
+                      {money(split.amountPaise)}
                     </Text>
                   </View>
                 );
@@ -605,6 +929,188 @@ export default function TripDetailScreen() {
             ) : null}
           </View>
         ) : null}
+      </Sheet>
+
+      <Sheet
+        visible={inviteOpen}
+        onClose={() => setInviteOpen(false)}
+        title="Add a member"
+        subtitle={`Invite someone to ${trip.name}.`}
+      >
+        {inviteSent ? (
+          <View style={{ alignItems: 'center', gap: 10, paddingVertical: 14 }}>
+            <View style={[styles.resultIcon, { backgroundColor: theme.colors.limeSoft }]}>
+              <Mail size={22} color={theme.colors.limeDeep} />
+            </View>
+            <Text variant="h2">Invite sent</Text>
+            <Text variant="bodySmall" align="center" color={theme.colors.inkMuted}>
+              We sent an invite to {inviteEmail}. If they use Splitie with that email,
+              they&apos;ll get a notification. You can also share the trip code.
+            </Text>
+            <Button
+              label="Invite another"
+              variant="secondary"
+              onPress={() => {
+                setInviteSent(false);
+                setInviteEmail('');
+              }}
+            />
+          </View>
+        ) : (
+          <View style={{ gap: 12 }}>
+            <Input
+              label="Email address"
+              value={inviteEmail}
+              onChangeText={(text) => {
+                setInviteEmail(text);
+                setInviteError(null);
+              }}
+              placeholder="friend@example.com"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              autoComplete="email"
+              icon={Mail}
+              error={inviteError ?? undefined}
+              hint="Invites use the email on their Splitie account."
+              returnKeyType="send"
+              onSubmitEditing={() => void sendInvite()}
+            />
+            <Button
+              label="Send invite"
+              icon={Mail}
+              onPress={sendInvite}
+              loading={inviteLoading}
+              disabled={!isValidInviteEmail(inviteEmail)}
+              fullWidth
+            />
+            <Text variant="caption" color={theme.colors.inkSubtle}>
+              Everyone with the trip code can join. Email invites are for people who
+              already use Splitie.
+            </Text>
+          </View>
+        )}
+      </Sheet>
+
+      <Sheet
+        visible={notifyOpen}
+        onClose={() => setNotifyOpen(false)}
+        title="Notify others"
+        subtitle="Send a nudge with the amount they owe you."
+        footer={
+          notifyResult ? (
+            <Button label="Done" onPress={() => setNotifyOpen(false)} fullWidth />
+          ) : (
+            <Button
+              label={
+                notifySelected.length === 0
+                  ? 'Select who owes you'
+                  : `Send ${notifySelected.length} reminder${notifySelected.length === 1 ? '' : 's'}`
+              }
+              onPress={sendReminders}
+              loading={notifyLoading}
+              disabled={notifySelected.length === 0}
+              fullWidth
+            />
+          )
+        }
+      >
+        {notifyResult ? (
+          <View style={{ alignItems: 'center', gap: 10, paddingVertical: 18 }}>
+            <View style={[styles.resultIcon, { backgroundColor: theme.colors.limeSoft }]}>
+              <BellRing size={22} color={theme.colors.limeDeep} />
+            </View>
+            <Text variant="h2">
+              {notifyResult.sent > 0
+                ? `${notifyResult.sent} reminder${notifyResult.sent === 1 ? '' : 's'} sent`
+                : 'No reminders sent'}
+            </Text>
+            <Text variant="bodySmall" align="center" color={theme.colors.inkMuted}>
+              {notifyResult.sent === 0
+                ? 'They were reminded in the last 6 hours, or they do not have a Splitie account.'
+                : notifyResult.skipped > 0
+                  ? `${notifyResult.skipped} skipped because of the 6-hour limit or account status.`
+                  : 'They will get a push with the amount and the trip.'}
+            </Text>
+          </View>
+        ) : reminderCandidates.length === 0 ? (
+          <Text variant="body" color={theme.colors.inkMuted}>
+            Add more people to the trip first.
+          </Text>
+        ) : (
+          <View style={{ gap: 8 }}>
+            {reminderCandidates.map((candidate) => {
+              const selected = notifySelected.includes(candidate.member.id);
+              const cooldown = isReminderCooldown(candidate);
+              const disabled = !candidate.canRemind || cooldown;
+              return (
+                <Pressable
+                  key={candidate.member.id}
+                  disabled={disabled}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: selected, disabled }}
+                  onPress={() => toggleNotify(candidate.member.id)}
+                  style={[
+                    styles.notifyRow,
+                    {
+                      borderColor: selected ? theme.colors.ink : theme.colors.line,
+                      backgroundColor: selected ? theme.colors.surfaceAlt : theme.colors.surface,
+                      opacity: disabled ? 0.52 : 1,
+                    },
+                  ]}
+                >
+                  <Avatar
+                    name={candidate.member.name}
+                    color={candidate.member.color}
+                    size={36}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: theme.fonts.semibold, fontSize: 13 }}>
+                      {candidate.member.name}
+                    </Text>
+                    <Text
+                      style={{
+                        fontFamily: theme.fonts.medium,
+                        fontSize: 10.5,
+                        color: theme.colors.inkSubtle,
+                        marginTop: 1,
+                      }}
+                    >
+                      {reminderLabel(candidate)}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                    <Text style={{ fontFamily: theme.fonts.bold, fontSize: 12.5 }}>
+                      {money(candidate.amountPaise)}
+                    </Text>
+                    {candidate.canRemind ? (
+                      <Text variant="micro" color={theme.colors.inkSubtle}>
+                        owes you
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View
+                    style={[
+                      styles.notifyCheck,
+                      {
+                        borderColor: selected ? theme.colors.lime : theme.colors.lineStrong,
+                        backgroundColor: selected ? theme.colors.lime : 'transparent',
+                      },
+                    ]}
+                  >
+                    {selected ? (
+                      <Check size={12} color={theme.colors.onLime} strokeWidth={3} />
+                    ) : null}
+                  </View>
+                </Pressable>
+              );
+            })}
+            <Text variant="caption" color={theme.colors.inkSubtle}>
+              Amounts use the same transfers as Settle up. You can send one reminder per
+              person every 6 hours.
+            </Text>
+          </View>
+        )}
       </Sheet>
 
       <Sheet
@@ -624,20 +1130,26 @@ export default function TripDetailScreen() {
           <Text style={{ flex: 1, fontFamily: theme.fonts.semibold, fontSize: 14 }}>Share trip summary</Text>
           <ArrowRight size={16} color={theme.colors.inkSubtle} />
         </Pressable>
-        <Pressable
-          onPress={confirmDeleteTrip}
-          style={[styles.optionRow, { borderColor: theme.colors.line }]}
-        >
-          <Trash2 size={19} color={theme.colors.negative} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: theme.fonts.semibold, fontSize: 14, color: theme.colors.negative }}>
-              Delete trip
-            </Text>
-            <Text style={{ fontFamily: theme.fonts.medium, fontSize: 11, color: theme.colors.inkSubtle, marginTop: 1 }}>
-              Removes every expense and settlement in it.
-            </Text>
-          </View>
-        </Pressable>
+        {isHost ? (
+          <Pressable
+            onPress={confirmDeleteTrip}
+            style={[styles.optionRow, { borderColor: theme.colors.line }]}
+          >
+            <Trash2 size={19} color={theme.colors.negative} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: theme.fonts.semibold, fontSize: 14, color: theme.colors.negative }}>
+                Delete trip
+              </Text>
+              <Text style={{ fontFamily: theme.fonts.medium, fontSize: 11, color: theme.colors.inkSubtle, marginTop: 1 }}>
+                Removes every expense and settlement in it.
+              </Text>
+            </View>
+          </Pressable>
+        ) : (
+          <Text variant="caption" color={theme.colors.inkSubtle} style={{ marginTop: 4 }}>
+            Only the host can delete this trip.
+          </Text>
+        )}
       </Sheet>
     </>
   );
@@ -703,6 +1215,55 @@ const styles = StyleSheet.create({
     color: '#8B9180',
     marginBottom: 6,
     marginLeft: 2,
+  },
+  shareHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  codeText: {
+    fontFamily: 'BricolageGrotesque_700Bold',
+    fontSize: 27,
+    letterSpacing: 5,
+    marginTop: 1,
+  },
+  shareHint: {
+    fontFamily: 'Manrope_500Medium',
+    fontSize: 10.5,
+    lineHeight: 15,
+    opacity: 0.55,
+    marginTop: 3,
+  },
+  shareActions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+  inviteTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+  inviteTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    height: 26,
+  },
+  resultIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notifyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+  },
+  notifyCheck: {
+    width: 21,
+    height: 21,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   transferTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   transferPeople: { flexDirection: 'row', alignItems: 'center', gap: 6 },
