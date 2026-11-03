@@ -11,6 +11,7 @@ import { captureEvent, posthog } from '@/lib/posthog';
 import { posthogAppLogger } from '@/lib/posthog-logger';
 import { captureException, Sentry } from '@/lib/sentry';
 import { requireSupabase, supabase } from '@/lib/supabase';
+import { unregisterPushToken } from '@/lib/push';
 import { releaseLocalData } from '@/features/sync/local-data';
 import type { User } from '@/types/models';
 
@@ -292,9 +293,16 @@ export const useAuthStore = create<AuthState>()(
         posthogAppLogger.info('user signed out');
         posthog?.reset();
         Sentry.setUser(null);
+        // Best effort while the session is still valid.
         set({ user: null });
         void releaseLocalData();
-        void supabase?.auth.signOut({ scope: 'local' });
+        void (async () => {
+          await Promise.race([
+            unregisterPushToken().catch(() => {}),
+            new Promise((resolve) => setTimeout(resolve, 3000)),
+          ]);
+          await supabase?.auth.signOut({ scope: 'local' });
+        })();
       },
 
       updateUser: (patch) => {
